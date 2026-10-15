@@ -23,7 +23,11 @@
     .borda .etiqueta { outline: 0.2mm dashed #888; outline-offset: -0.1mm; }
     .evento { font-size: 8pt; font-weight: 600; letter-spacing: .3pt; text-transform: uppercase; max-width: 100%; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
     .numero { font-size: 52pt; font-weight: 900; line-height: 1; letter-spacing: 1mm; font-variant-numeric: tabular-nums; }
-    .instrucao { font-size: 7pt; }
+    .movel { font-size: 11pt; font-weight: 700; margin-top: 1mm; max-width: 100%; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .movel span { font-weight: 400; }
+    /* Sem cadastro: deixa uma linha para escrever o nome à mão */
+    .movel.vazio { width: 80%; height: 5mm; border-bottom: 0.3mm solid #000; }
+    .instrucao { font-size: 7pt; margin-top: 0.5mm; }
 
     .barra { position: sticky; top: 0; padding: 12px 16px; background: #1d6b57; color: #fff; display: flex; gap: 12px; align-items: center; flex-wrap: wrap; }
     .barra button { padding: 10px 18px; border: 0; border-radius: 8px; font: inherit; font-weight: 700; cursor: pointer; }
@@ -46,8 +50,15 @@
     const q = new URLSearchParams(location.search);
     const de = Number(q.get('de')) || 1;
     const ate = Math.max(de, Number(q.get('ate')) || de);
-    const config = await api('GET', '/api/config');
+    const [config, moveis] = await Promise.all([api('GET', '/api/config'), api('GET', '/api/moveis')]);
+    const porCodigo = new Map(moveis.map((m) => [m.codigo, m]));
     const numeros = Array.from({ length: ate - de + 1 }, (_, i) => de + i);
+    const nomeMovel = (n) => {
+      const m = porCodigo.get(n);
+      if (!m?.tipo_nome) return '<div class="movel vazio"></div>';
+      return `<div class="movel">${esc(m.tipo_nome)}${m.descricao ? ` <span>· ${esc(m.descricao)}</span>` : ''}</div>`;
+    };
+    const semNome = numeros.filter((n) => !porCodigo.get(n)?.tipo_nome).length;
     const folhas = [];
     for (let i = 0; i < numeros.length; i += 24) folhas.push(numeros.slice(i, i + 24));
     const corpo = document.getElementById('folhas');
@@ -56,10 +67,12 @@
       <div class="etiqueta">
         <div class="evento">${esc(config.nome_evento)}</div>
         <div class="numero">${codigo(n)}</div>
+        ${nomeMovel(n)}
         <div class="instrucao">Diga este número ao vendedor</div>
       </div>`).join('')}</section>`).join('');
     document.getElementById('resumo').textContent =
       `${numeros.length} etiquetas (${codigo(de)} a ${codigo(ate)}) em ${folhas.length} folha(s) A4. ` +
+      (semNome ? `${semNome} sem cadastro saem com uma linha para escrever o nome à mão. ` : '') +
       'Na janela de impressão use margens "Nenhuma" e escala 100%.';
   </script>
 </body>
