@@ -275,18 +275,25 @@ function ligarPagamento(form, p) {
     const pix = v('pix');
     const cartao = v('cartao');
     const recebido = v('recebido');
-    form.querySelector('.recebido').hidden = !(din > 0);
     const invalido = [din, pix, cartao, recebido].some(Number.isNaN);
     const soma = din + pix + cartao;
     const falta = p.total_centavos - soma;
-    let ok = !invalido && falta === 0;
+    // Se passou do total e o excesso cabe no dinheiro, o que passou é troco:
+    // o campo Dinheiro vira "quanto o cliente entregou".
+    const trocoDoExcesso = !invalido && falta < 0 && -falta < din;
+    const dinNoCaixa = trocoDoExcesso ? din + falta : din;
+    form.querySelector('.recebido').hidden = !(din > 0) || trocoDoExcesso;
+    let ok = !invalido && (falta === 0 || trocoDoExcesso);
     let html;
+    let troco = 0;
     if (invalido) html = '<span class="erro">Algum valor está inválido.</span>';
     else if (falta > 0) html = `Falta <strong>${reais(falta)}</strong>`;
-    else if (falta < 0) html = `<span class="erro">Passou ${reais(-falta)} do total</span>`;
+    else if (trocoDoExcesso) {
+      troco = -falta;
+      html = `<span class="ok">✓ Fica ${reais(dinNoCaixa)} em dinheiro no caixa</span> · Troco: <strong class="troco">${reais(troco)}</strong>`;
+    } else if (falta < 0) html = `<span class="erro">Passou ${reais(-falta)} do total — o troco só pode sair da parte em dinheiro</span>`;
     else html = '<span class="ok">✓ Valor confere</span>';
-    let troco = 0;
-    if (!invalido && din > 0 && recebido > 0) {
+    if (!invalido && !trocoDoExcesso && din > 0 && recebido > 0) {
       troco = recebido - din;
       if (troco < 0) {
         ok = false;
@@ -298,7 +305,7 @@ function ligarPagamento(form, p) {
     conta.innerHTML = html;
     botao.disabled = !ok;
     calculo = {
-      pagamentos: [['dinheiro', din], ['pix', pix], ['cartao', cartao]]
+      pagamentos: [['dinheiro', dinNoCaixa], ['pix', pix], ['cartao', cartao]]
         .filter(([, valor]) => valor > 0)
         .map(([forma, valor]) => ({ forma, valor_centavos: valor })),
       troco_centavos: Math.max(0, troco),
