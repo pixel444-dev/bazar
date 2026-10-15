@@ -68,12 +68,45 @@ export function paraCentavos(valor) {
   return Math.round(Number(s) * 100);
 }
 
+// "88999998888" → "(88) 9-9999-8888", "8833334444" → "(88) 3333-4444".
+// Também formata número pela metade, para ir montando enquanto o vendedor digita.
+export function mascaraTelefone(t) {
+  let d = String(t ?? '').replace(/\D/g, '').replace(/^0+/, '');
+  if (d.length > 11 && d.startsWith('55')) d = d.slice(2); // colou com +55
+  d = d.slice(0, 11);
+  if (d.length <= 2) return d && `(${d}`;
+  const ddd = `(${d.slice(0, 2)}) `;
+  const r = d.slice(2);
+  if (r[0] === '9') return ddd + [r.slice(0, 1), r.slice(1, 5), r.slice(5)].filter(Boolean).join('-');
+  return ddd + [r.slice(0, 4), r.slice(4)].filter(Boolean).join('-');
+}
+
 export function telefoneFmt(t) {
   const d = String(t ?? '').replace(/\D/g, '');
-  if (d.length === 11) return `(${d.slice(0, 2)}) ${d.slice(2, 7)}-${d.slice(7)}`;
-  if (d.length === 10) return `(${d.slice(0, 2)}) ${d.slice(2, 6)}-${d.slice(6)}`;
-  return d;
+  return d.length === 10 || d.length === 11 ? mascaraTelefone(d) : d;
 }
+
+// Campos com data-mascara="telefone" se formatam sozinhos enquanto digita.
+document.addEventListener('input', (e) => {
+  const el = e.target;
+  if (!el.matches?.('input[data-mascara="telefone"]')) return;
+  let valor = el.value;
+  let pos = el.selectionStart ?? valor.length;
+  // Apagou só um separador ("-", ")" ou espaço): apaga o número antes dele.
+  const refeito = mascaraTelefone(valor);
+  if (e.inputType === 'deleteContentBackward' && refeito.length === valor.length + 1 && /\D/.test(refeito[pos])) {
+    const antes = valor.slice(0, pos).replace(/\d(\D*)$/, '$1');
+    valor = antes + valor.slice(pos);
+    pos = antes.length;
+  }
+  const digitosAntes = valor.slice(0, pos).replace(/\D/g, '').length;
+  el.value = mascaraTelefone(valor);
+  // Cursor volta para depois do mesmo número de dígitos.
+  let novo = 0;
+  for (let n = 0; novo < el.value.length && n < digitosAntes; novo++) if (/\d/.test(el.value[novo])) n++;
+  while (novo < el.value.length && /\D/.test(el.value[novo])) novo++;
+  el.setSelectionRange(novo, novo);
+});
 
 export function enderecoFmt(p) {
   return [`${p.rua ?? ''}, ${p.numero ?? ''}`, p.complemento, p.bairro, p.cidade_nome].filter(Boolean).join(' · ');
@@ -220,7 +253,7 @@ export function camposCliente(cidades, v = {}) {
       <input name="cliente_nome" required autocomplete="off" autocapitalize="words" value="${val('cliente_nome')}">
     </label>
     <label>Telefone com DDD
-      <input name="telefone" type="tel" inputmode="tel" required autocomplete="off" placeholder="(19) 98765-4321" value="${esc(telefoneFmt(v.telefone))}">
+      <input name="telefone" type="tel" inputmode="tel" data-mascara="telefone" required autocomplete="off" placeholder="(88) 9-8765-4321" value="${esc(telefoneFmt(v.telefone))}">
     </label>
     <label>Cidade
       <select name="cidade_id" required>
