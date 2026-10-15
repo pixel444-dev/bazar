@@ -29,6 +29,7 @@
     import { api, esc, reais, codigo, dataHora, telefoneFmt, ROTULO_FORMA } from '/js/comum.js';
     const q = new URLSearchParams(location.search);
     const [p, config] = await Promise.all([api('GET', `/api/pedidos/${Number(q.get('pedido'))}`), api('GET', '/api/config')]);
+    const dinheiro = p.pagamentos.filter((x) => x.forma === 'dinheiro').reduce((s, x) => s + x.valor_centavos, 0);
     document.getElementById('cupom').innerHTML = `
       <h1>${esc(config.nome_evento)}</h1>
       <div class="centro pequeno">Comprovante de compra</div>
@@ -39,7 +40,8 @@
       <hr>
       <div class="linha total"><span>TOTAL</span><span>${reais(p.total_centavos)}</span></div>
       ${p.pagamentos.map((x) => `<div class="linha"><span>${ROTULO_FORMA[x.forma]}</span><span>${reais(x.valor_centavos)}</span></div>`).join('')}
-      ${p.troco_centavos ? `<div class="linha"><span>Troco</span><span>${reais(p.troco_centavos)}</span></div>` : ''}
+      ${p.troco_centavos ? `<div class="linha"><span>Recebido em dinheiro</span><span>${reais(dinheiro + p.troco_centavos)}</span></div>
+      <div class="linha"><span>Troco</span><span>${reais(p.troco_centavos)}</span></div>` : ''}
       <hr>
       <div><b>Entrega para:</b></div>
       <div>${esc(p.cliente_nome)}</div>

@@ -121,7 +121,8 @@ function blocoPago(p) {
     <div class="bloco">
       <h3>Pagamento</h3>
       ${p.pagamentos.map((x) => `<div class="linha-topo"><span>${ROTULO_FORMA[x.forma]}</span><strong>${reais(x.valor_centavos)}</strong></div>`).join('')}
-      ${p.troco_centavos ? `<div class="linha-topo"><span>Troco dado</span><span>${reais(p.troco_centavos)}</span></div>` : ''}
+      ${p.troco_centavos ? `<div class="linha-topo"><span>Recebido em dinheiro</span><span>${reais(p.pagamentos.filter((x) => x.forma === 'dinheiro').reduce((s, x) => s + x.valor_centavos, 0) + p.troco_centavos)}</span></div>
+      <div class="linha-topo"><span>Troco dado</span><span>${reais(p.troco_centavos)}</span></div>` : ''}
       <p class="suave">Recebido por ${esc(p.caixa_nome)} às ${hora(p.pago_em)}${p.entregue ? ' · <strong>já entregue</strong>' : ''}</p>
       <button class="botao primario" id="imprimir">Imprimir comprovante</button>
     </div>`;
