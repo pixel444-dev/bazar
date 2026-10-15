@@ -115,9 +115,19 @@ const CONFIG_PADRAO = {
   wifi_senha: '',
 };
 
-const TIPOS_INICIAIS = [
-  'Armário', 'Balcão', 'Cadeira', 'Cama', 'Colchão', 'Cômoda', 'Criado-mudo', 'Escrivaninha',
-  'Estante', 'Guarda-roupa', 'Mesa', 'Poltrona', 'Rack', 'Sofá',
+// Cada posição é uma leva de tipos padrão. Bancos já existentes recebem só as levas que
+// ainda não tinham (controle pelo PRAGMA user_version), sem recriar tipos que o admin excluiu.
+const TIPOS_POR_VERSAO = [
+  [
+    'Armário', 'Balcão', 'Cadeira', 'Cama', 'Colchão', 'Cômoda', 'Criado-mudo', 'Escrivaninha',
+    'Estante', 'Guarda-roupa', 'Mesa', 'Poltrona', 'Rack', 'Sofá',
+  ],
+  [
+    'Aparador', 'Armário de cozinha', 'Banco', 'Banqueta', 'Baú', 'Beliche', 'Berço', 'Bicama',
+    'Buffet', 'Cabeceira', 'Cadeira de escritório', 'Cama box', 'Cristaleira', 'Espelho', 'Gaveteiro',
+    'Mesa de centro', 'Mesa de jantar', 'Nicho', 'Outros', 'Painel de TV', 'Paneleiro', 'Penteadeira',
+    'Prateleira', 'Puff', 'Sapateira', 'Sofá-cama',
+  ],
 ];
 
 export const PIN_ADMIN_INICIAL = '1234';
@@ -137,11 +147,16 @@ function popular(db) {
   const inserir = db.prepare('INSERT OR IGNORE INTO config (chave, valor) VALUES (?, ?)');
   for (const [chave, valor] of Object.entries(CONFIG_PADRAO)) inserir.run(chave, valor);
 
-  if (!db.prepare('SELECT 1 FROM usuarios LIMIT 1').get()) {
-    db.prepare("INSERT INTO usuarios (nome, pin, papel) VALUES ('Admin', ?, 'admin')").run(hashPin(PIN_ADMIN_INICIAL));
-    const tipo = db.prepare('INSERT INTO tipos (nome) VALUES (?)');
-    for (const nome of TIPOS_INICIAIS) tipo.run(nome);
+  const novo = !db.prepare('SELECT 1 FROM usuarios LIMIT 1').get();
+  if (novo) db.prepare("INSERT INTO usuarios (nome, pin, papel) VALUES ('Admin', ?, 'admin')").run(hashPin(PIN_ADMIN_INICIAL));
+
+  // Bancos criados antes deste controle já têm a primeira leva.
+  let versao = db.prepare('PRAGMA user_version').get().user_version || (novo ? 0 : 1);
+  const tipo = db.prepare('INSERT OR IGNORE INTO tipos (nome) VALUES (?)');
+  for (; versao < TIPOS_POR_VERSAO.length; versao++) {
+    for (const nome of TIPOS_POR_VERSAO[versao]) tipo.run(nome);
   }
+  db.exec(`PRAGMA user_version = ${versao}`);
 }
 
 // O node:sqlite é síncrono: tudo o que roda dentro de `fn` acontece sem nenhuma outra

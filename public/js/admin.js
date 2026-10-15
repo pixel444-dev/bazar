@@ -12,13 +12,36 @@ async function recarregarConfig() {
   const opcoes = config.tipos.map((t) => `<option value="${t.id}">${esc(t.nome)}</option>`).join('');
   for (const sel of document.querySelectorAll('.seletor-tipo')) {
     const atual = sel.value;
-    sel.innerHTML = `<option value="">Escolha o tipo…</option>${opcoes}`;
+    sel.innerHTML = `<option value="">Escolha o tipo…</option>${opcoes}<option value="novo">+ Novo tipo…</option>`;
     sel.value = atual;
   }
   const filtro = $('#filtro-tipo');
   const atual = filtro.value;
   filtro.innerHTML = `<option value="">Todos os tipos</option>${opcoes}`;
   filtro.value = atual;
+}
+
+// "+ Novo tipo…" nos seletores: cria o tipo na hora e já deixa ele escolhido.
+for (const sel of document.querySelectorAll('.seletor-tipo')) {
+  let anterior = '';
+  sel.addEventListener('focus', () => { anterior = sel.value; });
+  sel.addEventListener('change', async () => {
+    if (sel.value !== 'novo') {
+      anterior = sel.value;
+      return;
+    }
+    const nome = prompt('Nome do novo tipo de móvel:');
+    sel.value = anterior;
+    if (!nome?.trim()) return;
+    try {
+      const { id } = await api('POST', '/api/admin/tipos', { nome });
+      await recarregarConfig();
+      sel.value = anterior = String(id);
+      aviso(`Tipo "${nome.trim()}" adicionado.`, 'ok', 2500);
+    } catch (erro) {
+      aviso(erro.message, 'erro', 6000);
+    }
+  });
 }
 
 // ---------- Painel ----------

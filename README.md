@@ -17,7 +17,7 @@ O que ele resolve:
 1. Ligue o roteador e conecte o notebook central no Wi-Fi dele.
 2. Dê dois cliques em **`iniciar.bat`**. Uma janela preta abre mostrando os endereços. **Não feche essa janela.**
 3. Na primeira vez, o Windows pergunta se libera o Node.js no firewall: marque **Redes privadas** e permita.
-4. No notebook, abra `http://localhost:3000` e entre como **Admin**, PIN **1234**. Troque o PIN em *Equipe e cidades*.
+4. No notebook, abra `http://localhost:3000` e entre como **Admin**, PIN **1234**. Troque o PIN em *Equipe, cidades e tipos*.
 
 Para os celulares, abra *Configurações → Acesso dos celulares* e imprima a página com os QR codes
 (Wi-Fi e endereço do sistema). Cole na entrada do galpão.
@@ -27,7 +27,7 @@ Para os celulares, abra *Configurações → Acesso dos celulares* e imprima a p
 
 ## Antes do bazar
 
-1. **Equipe e cidades:** cadastre vendedores, caixas (cada um com PIN) e as cidades atendidas na entrega.
+1. **Equipe, cidades e tipos:** cadastre vendedores, caixas (cada um com PIN), as cidades atendidas na entrega e os tipos de móvel que faltarem (também dá para criar um tipo na hora, pela opção "+ Novo tipo…" no cadastro do móvel).
 2. **Móveis e etiquetas:** crie as etiquetas (ex.: 300) e imprima em A4 (24 por folha). Cole nos móveis.
 3. **Cadastro rápido:** com as etiquetas coladas, ande pelo galpão com o celular, digite o número, escolha
    o tipo e o preço. Ao salvar, ele já abre o próximo número com o mesmo tipo e preço preenchidos.
