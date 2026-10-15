@@ -1,0 +1,332 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Relatório de vendas</title>
+  <link rel="icon" href="/icone.svg">
+  <style>
+    @page { size: A4; margin: 14mm 12mm 16mm; }
+    :root {
+      --verde: #1d6b57; --verde-escuro: #134a3c; --verde-claro: #e6f1ed; --verde-linha: #cfe2db;
+      --texto: #1d1b18; --suave: #6a645b; --linha: #e4ded5; --zebra: #faf8f5;
+      --dinheiro: #2e7d4f; --pix: #0f8fa8; --cartao: #5b4bc4; --entrega: #d4891a;
+    }
+    * { box-sizing: border-box; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+    body { margin: 0; font-family: "Segoe UI", system-ui, Roboto, Arial, sans-serif; font-size: 9.5pt; line-height: 1.4; color: var(--texto); }
+    .pagina { width: 186mm; margin: 0 auto; }
+    .num, td.num, th.num { text-align: right; font-variant-numeric: tabular-nums; white-space: nowrap; }
+
+    /* Cabeçalho */
+    .cabecalho { display: flex; justify-content: space-between; align-items: flex-end; gap: 6mm; padding-bottom: 4mm; border-bottom: 2.5px solid var(--verde); }
+    .sobre { font-size: 8pt; font-weight: 700; letter-spacing: .14em; text-transform: uppercase; color: var(--verde); }
+    h1 { font-size: 22pt; line-height: 1.1; margin: 1mm 0 0; letter-spacing: -.01em; }
+    .cabecalho .meta { text-align: right; color: var(--suave); font-size: 8.5pt; }
+    .cabecalho .meta strong { color: var(--texto); }
+
+    /* Destaque do total */
+    .destaque { display: grid; grid-template-columns: 1fr auto; gap: 8mm; align-items: center; margin-top: 6mm; padding: 6mm 7mm;
+      background: linear-gradient(135deg, var(--verde) 0%, var(--verde-escuro) 100%); color: #fff; border-radius: 4mm; }
+    .destaque small { display: block; font-size: 8.5pt; font-weight: 600; letter-spacing: .08em; text-transform: uppercase; opacity: .85; }
+    .destaque .valor { font-size: 30pt; font-weight: 800; line-height: 1.1; margin: 1mm 0 3mm; font-variant-numeric: tabular-nums; letter-spacing: -.01em; }
+    .destaque .numeros { display: flex; gap: 7mm; flex-wrap: wrap; }
+    .destaque .numeros div { font-size: 8pt; opacity: .9; }
+    .destaque .numeros b { display: block; font-size: 13pt; opacity: 1; font-variant-numeric: tabular-nums; }
+    .anel { --p: 0; width: 30mm; height: 30mm; border-radius: 50%; display: grid; place-items: center;
+      background: conic-gradient(#fff calc(var(--p) * 1%), rgba(255,255,255,.22) 0); }
+    .anel > div { width: 23mm; height: 23mm; border-radius: 50%; background: var(--verde-escuro); display: grid; place-items: center; text-align: center; }
+    .anel b { font-size: 14pt; line-height: 1; }
+    .anel span { display: block; font-size: 6.5pt; opacity: .85; margin-top: .8mm; line-height: 1.15; }
+
+    /* Seções */
+    h2 { font-size: 12.5pt; margin: 8mm 0 3mm; display: flex; align-items: baseline; gap: 3mm; break-after: avoid; color: var(--verde-escuro); }
+    h2::before { content: ""; width: 1.4mm; height: 4.2mm; background: var(--verde); border-radius: 1mm; align-self: center; }
+    h2 small { font-size: 8.5pt; font-weight: 500; color: var(--suave); }
+    .nota { color: var(--suave); font-size: 8pt; margin: 2mm 0 0; }
+    .bloco { break-inside: avoid; }
+
+    /* Formas de pagamento */
+    .faixa { display: flex; height: 4mm; border-radius: 2mm; overflow: hidden; background: var(--linha); margin-bottom: 3mm; }
+    .faixa span { display: block; height: 100%; }
+    .formas { display: grid; grid-template-columns: repeat(4, 1fr); gap: 3mm; }
+    .forma { border: 1px solid var(--linha); border-top: 1.2mm solid var(--cor); border-radius: 2.5mm; padding: 3mm 3.5mm; }
+    .forma small { display: flex; justify-content: space-between; font-weight: 600; color: var(--suave); }
+    .forma small em { font-style: normal; color: var(--cor); font-weight: 700; }
+    .forma strong { display: block; font-size: 13.5pt; margin-top: 1mm; font-variant-numeric: tabular-nums; }
+    .forma .det { font-size: 7.5pt; color: var(--suave); margin-top: 1mm; }
+
+    /* Previsão */
+    .previsao { display: grid; grid-template-columns: repeat(4, 1fr); border: 1px solid var(--verde-linha); border-radius: 2.5mm; background: var(--verde-claro); }
+    .previsao div { padding: 3mm 3.5mm; }
+    .previsao div + div { border-left: 1px solid var(--verde-linha); }
+    .previsao small { display: block; font-weight: 600; color: var(--suave); }
+    .previsao strong { font-size: 12pt; font-variant-numeric: tabular-nums; }
+
+    /* Tabelas */
+    table { width: 100%; border-collapse: collapse; }
+    thead { display: table-header-group; }
+    tr { break-inside: avoid; }
+    th { font-size: 7.5pt; font-weight: 700; text-transform: uppercase; letter-spacing: .05em; color: var(--verde-escuro); text-align: left;
+      padding: 2mm 2mm; border-bottom: 1.5px solid var(--verde); background: var(--verde-claro); }
+    td { padding: 1.7mm 2mm; border-bottom: 1px solid var(--linha); vertical-align: top; }
+    tbody tr:nth-child(even) td { background: var(--zebra); }
+    tfoot td { font-weight: 800; border-top: 1.5px solid var(--verde); border-bottom: 0; background: #fff; padding-top: 2.2mm; }
+    td.vazio { text-align: center; color: var(--suave); padding: 5mm; }
+    .pos { display: inline-grid; place-items: center; width: 5mm; height: 5mm; border-radius: 50%; background: var(--verde-claro); color: var(--verde-escuro); font-size: 7.5pt; font-weight: 800; }
+    .pos.ouro { background: var(--verde); color: #fff; }
+    .mini { display: flex; align-items: center; gap: 2mm; justify-content: flex-end; }
+    .mini i { display: block; width: 16mm; height: 1.8mm; background: var(--linha); border-radius: 1mm; overflow: hidden; }
+    .mini i b { display: block; height: 100%; background: var(--verde); }
+    .tabela-pequena td, .tabela-pequena th { font-size: 8pt; padding: 1.4mm 1.6mm; }
+    .cod { font-weight: 800; font-variant-numeric: tabular-nums; }
+    .chip { display: inline-block; padding: .2mm 1.6mm; border-radius: 3mm; font-size: 7pt; font-weight: 700; white-space: nowrap; }
+    .chip.disponivel { background: var(--verde-claro); color: var(--verde-escuro); }
+    .chip.reservado { background: #fcf1d6; color: #8f5c00; }
+    .grupo td { background: #fff !important; font-weight: 800; color: var(--verde-escuro); border-bottom: 1px solid var(--verde-linha); padding-top: 3mm; }
+    .sub-linha { color: var(--suave); font-size: 7.5pt; }
+    .pag { white-space: nowrap; }
+    .pag i { display: inline-block; width: 1.8mm; height: 1.8mm; border-radius: 50%; margin-right: 1mm; vertical-align: middle; }
+
+    .sem-cadastro { border: 1px dashed var(--suave); border-radius: 2.5mm; padding: 3mm 4mm; margin-top: 4mm; font-size: 8.5pt; break-inside: avoid; }
+
+    .assinaturas { display: grid; grid-template-columns: 1fr 1fr; gap: 14mm; margin-top: 18mm; break-inside: avoid; }
+    .assinaturas div { border-top: 1px solid var(--texto); padding-top: 1.5mm; text-align: center; font-size: 8.5pt; color: var(--suave); }
+
+    .quebra { break-before: page; }
+    .oculto { display: none; }
+
+    /* Tela */
+    .barra { position: sticky; top: 0; z-index: 1; padding: 12px 16px; background: var(--verde); color: #fff; display: flex; gap: 10px 18px; align-items: center; flex-wrap: wrap; font-size: 14px; }
+    .barra button { padding: 10px 18px; border: 0; border-radius: 8px; font: inherit; font-weight: 700; cursor: pointer; background: #fff; color: var(--verde-escuro); }
+    .barra label { display: flex; gap: 6px; align-items: center; }
+    .barra .dica { opacity: .85; font-size: 13px; }
+    @media screen {
+      body { background: #e9e6e1; }
+      .pagina { width: 210mm; max-width: 100%; background: #fff; padding: 14mm 12mm; margin: 16px auto; box-shadow: 0 2px 14px rgba(0,0,0,.15); }
+      .quebra { break-before: auto; margin-top: 12mm; }
+    }
+    @media screen and (max-width: 800px) {
+      .pagina { padding: 16px; margin: 0; overflow-x: auto; }
+    }
+    @media print { .barra { display: none; } }
+  </style>
+  <style id="estilo-rodape"></style>
+</head>
+<body>
+  <div class="barra">
+    <button onclick="window.print()">Salvar PDF / Imprimir</button>
+    <span class="dica">Na janela que abrir, em <b>Destino</b>, escolha <b>Salvar como PDF</b>.</span>
+    <label><input type="checkbox" id="mostrar-pedidos" checked> Vendas pedido a pedido</label>
+    <label><input type="checkbox" id="mostrar-sobras" checked> Móveis não vendidos</label>
+  </div>
+  <div class="pagina" id="pagina">Carregando…</div>
+  <script type="module">
+    import { api, esc, reais, codigo, ROTULO_FORMA } from '/js/comum.js';
+
+    const [{ resumo: r, pedidos, nao_vendidos: sobras, sem_cadastro: semCadastro }, config] = await Promise.all([
+      api('GET', '/api/relatorios/final'),
+      api('GET', '/api/config'),
+    ]);
+
+    const FORMAS = ['dinheiro', 'pix', 'cartao', 'entrega'];
+    const NOME_CURTO = { ...ROTULO_FORMA, entrega: 'Na entrega' };
+    const pct = (parte, todo) => (todo ? (parte / todo) * 100 : 0);
+    const pctTxt = (parte, todo) => `${pct(parte, todo).toLocaleString('pt-BR', { maximumFractionDigits: 1 })}%`;
+    const data = (ms) => new Date(ms).toLocaleDateString('pt-BR');
+    const dataHora = (ms) => new Date(ms).toLocaleString('pt-BR', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' });
+    const plural = (n, um, varios) => `${n.toLocaleString('pt-BR')} ${n === 1 ? um : varios}`;
+    const mini = (p) => `<span class="mini">${p.toLocaleString('pt-BR', { maximumFractionDigits: 0 })}%<i><b style="width:${Math.min(p, 100)}%"></b></i></span>`;
+
+    // 5, 6, 7, 9 → "005–007, 009"
+    function faixas(lista) {
+      const partes = [];
+      for (let i = 0; i < lista.length; i++) {
+        let fim = i;
+        while (lista[fim + 1] === lista[fim] + 1) fim++;
+        partes.push(fim > i ? `${codigo(lista[i])}–${codigo(lista[fim])}` : codigo(lista[i]));
+        i = fim;
+      }
+      return partes.join(', ');
+    }
+
+    const agora = Date.now();
+    const total = r.formas.total;
+    const moveisVendidos = r.moveis.vendido;
+    const ticket = pedidos.length ? Math.round(total / pedidos.length) : 0;
+    const pv = r.previsao;
+    const atingido = Math.round(pct(pv.vendido, pv.total));
+    const periodo = pedidos.length
+      ? `${dataHora(pedidos[0].pago_em)} a ${dataHora(pedidos.at(-1).pago_em)}`
+      : 'nenhuma venda paga ainda';
+
+    // Nome do arquivo ao salvar como PDF e rodapé de cada página.
+    document.title = `Relatório de vendas - ${config.nome_evento} - ${data(agora).replaceAll('/', '-')}`;
+    const rodape = `${config.nome_evento} · Relatório de vendas · ${data(agora)}`.replace(/["\\]/g, '');
+    document.getElementById('estilo-rodape').textContent = `@page {
+      @bottom-left { content: "${rodape}"; font: 7.5pt "Segoe UI", sans-serif; color: #6a645b; }
+      @bottom-right { content: "Página " counter(page) " de " counter(pages); font: 7.5pt "Segoe UI", sans-serif; color: #6a645b; }
+    }`;
+
+    const caixas = r.caixas;
+    const totalCaixas = Object.fromEntries(FORMAS.map((f) => [f, caixas.reduce((s, c) => s + c[f], 0)]));
+    const totalPedidosCaixas = caixas.reduce((s, c) => s + (c.pedidos ?? 0), 0);
+
+    const tipos = r.tipos;
+    const somaTipos = (campo) => tipos.reduce((s, t) => s + t[campo], 0);
+    const cadastrados = somaTipos('total');
+
+    // Sobras agrupadas por tipo (já vêm ordenadas por tipo e número).
+    const gruposSobras = new Map();
+    for (const m of sobras) {
+      const nome = m.tipo_nome ?? 'Sem tipo';
+      if (!gruposSobras.has(nome)) gruposSobras.set(nome, []);
+      gruposSobras.get(nome).push(m);
+    }
+    const valorSobras = sobras.reduce((s, m) => s + m.preco_centavos, 0);
+
+    document.getElementById('pagina').innerHTML = `
+      <header class="cabecalho">
+        <div>
+          <div class="sobre">Relatório de vendas</div>
+          <h1>${esc(config.nome_evento)}</h1>
+        </div>
+        <div class="meta">
+          Gerado em <strong>${dataHora(agora)}</strong><br>
+          Vendas de ${periodo}
+        </div>
+      </header>
+
+      <section class="destaque">
+        <div>
+          <small>Total vendido</small>
+          <div class="valor">${reais(total)}</div>
+          <div class="numeros">
+            <div><b>${pedidos.length.toLocaleString('pt-BR')}</b>pedidos pagos</div>
+            <div><b>${moveisVendidos.toLocaleString('pt-BR')}</b>móveis vendidos</div>
+            <div><b>${reais(ticket)}</b>média por pedido</div>
+            <div><b>${(r.moveis.disponivel + r.moveis.reservado).toLocaleString('pt-BR')}</b>móveis sobraram</div>
+          </div>
+        </div>
+        <div class="anel" style="--p:${atingido}"><div><div><b>${atingido}%</b><span>do total<br>previsto</span></div></div></div>
+      </section>
+
+      <section class="bloco">
+        <h2>Formas de pagamento <small>tudo o que foi recebido no bazar</small></h2>
+        <div class="faixa">${FORMAS.map((f) => `<span style="width:${pct(r.formas[f], total)}%;background:var(--${f})"></span>`).join('')}</div>
+        <div class="formas">
+          ${FORMAS.map((f) => `
+            <div class="forma" style="--cor:var(--${f})">
+              <small>${NOME_CURTO[f]} <em>${pctTxt(r.formas[f], total)}</em></small>
+              <strong>${reais(r.formas[f])}</strong>
+              <div class="det">${f === 'entrega'
+                ? `${reais(r.entregas.recebido_na_entrega)} já recebido<br>${reais(r.entregas.a_receber)} falta receber`
+                : f === 'dinheiro' ? 'Já descontado o troco' : '&nbsp;'}</div>
+            </div>`).join('')}
+        </div>
+        <p class="nota">"Na entrega" é o valor que o cliente paga ao entregador quando recebe o móvel; não fica na gaveta do caixa.</p>
+      </section>
+
+      <section class="bloco">
+        <h2>Previsão × realizado <small>pelo preço das etiquetas</small></h2>
+        <div class="previsao">
+          <div><small>Se vendesse tudo</small><strong>${reais(pv.total)}</strong></div>
+          <div><small>Vendido</small><strong>${reais(pv.vendido)}</strong></div>
+          <div><small>Reservado agora</small><strong>${reais(pv.reservado)}</strong></div>
+          <div><small>Não vendido</small><strong>${reais(pv.disponivel)}</strong></div>
+        </div>
+        ${pv.sem_preco ? `<p class="nota">${plural(pv.sem_preco, 'etiqueta sem cadastro não entra', 'etiquetas sem cadastro não entram')} na previsão, porque ainda não têm preço.</p>` : ''}
+      </section>
+
+      <section class="bloco">
+        <h2>Fechamento por caixa</h2>
+        <table>
+          <thead><tr><th>Caixa</th><th class="num">Pedidos</th>${FORMAS.map((f) => `<th class="num">${NOME_CURTO[f]}</th>`).join('')}<th class="num">Total</th></tr></thead>
+          <tbody>${caixas.map((c) => `<tr>
+              <td><strong>${esc(c.nome)}</strong></td><td class="num">${c.pedidos ?? 0}</td>
+              ${FORMAS.map((f) => `<td class="num">${reais(c[f])}</td>`).join('')}
+              <td class="num"><strong>${reais(c.total)}</strong></td></tr>`).join('')
+            || '<tr><td colspan="7" class="vazio">Nenhum pagamento registrado.</td></tr>'}</tbody>
+          ${caixas.length > 1 ? `<tfoot><tr><td>Todos os caixas</td><td class="num">${totalPedidosCaixas}</td>
+            ${FORMAS.map((f) => `<td class="num">${reais(totalCaixas[f])}</td>`).join('')}<td class="num">${reais(total)}</td></tr></tfoot>` : ''}
+        </table>
+        <p class="nota">Dinheiro já descontado o troco: é o valor que deve estar na gaveta de cada caixa.</p>
+      </section>
+
+      <section class="bloco">
+        <h2>Desempenho por vendedor</h2>
+        <table>
+          <thead><tr><th style="width:8mm"></th><th>Vendedor</th><th class="num">Pedidos</th><th class="num">Móveis</th><th class="num">Média por pedido</th><th class="num">Total vendido</th><th class="num">Participação</th></tr></thead>
+          <tbody>${r.vendedores.map((v, i) => `<tr>
+              <td><span class="pos ${i === 0 ? 'ouro' : ''}">${i + 1}</span></td>
+              <td><strong>${esc(v.nome)}</strong></td><td class="num">${v.pedidos}</td><td class="num">${v.itens}</td>
+              <td class="num">${reais(Math.round(v.total / v.pedidos))}</td><td class="num"><strong>${reais(v.total)}</strong></td>
+              <td class="num">${mini(pct(v.total, total))}</td></tr>`).join('')
+            || '<tr><td colspan="7" class="vazio">Nenhuma venda paga ainda.</td></tr>'}</tbody>
+          ${r.vendedores.length > 1 ? `<tfoot><tr><td></td><td>Todos</td><td class="num">${pedidos.length}</td><td class="num">${moveisVendidos}</td>
+            <td class="num">${reais(ticket)}</td><td class="num">${reais(total)}</td><td></td></tr></tfoot>` : ''}
+        </table>
+      </section>
+
+      <section class="bloco">
+        <h2>Por tipo de móvel</h2>
+        <table>
+          <thead><tr><th>Tipo</th><th class="num">Cadastrados</th><th class="num">Vendidos</th><th class="num">Sobraram</th><th class="num">Valor vendido</th><th class="num">Valor que sobrou</th><th class="num">Vendido</th></tr></thead>
+          <tbody>${tipos.map((t) => `<tr>
+              <td><strong>${esc(t.nome)}</strong></td><td class="num">${t.total}</td><td class="num">${t.vendidos}</td>
+              <td class="num">${t.total - t.vendidos}</td><td class="num">${reais(t.valor_vendido)}</td>
+              <td class="num">${reais(t.valor_total - t.valor_vendido)}</td><td class="num">${mini(pct(t.vendidos, t.total))}</td></tr>`).join('')
+            || '<tr><td colspan="7" class="vazio">Nenhum móvel cadastrado.</td></tr>'}</tbody>
+          ${tipos.length > 1 ? `<tfoot><tr><td>Total</td><td class="num">${cadastrados}</td><td class="num">${somaTipos('vendidos')}</td>
+            <td class="num">${cadastrados - somaTipos('vendidos')}</td><td class="num">${reais(somaTipos('valor_vendido'))}</td>
+            <td class="num">${reais(somaTipos('valor_total') - somaTipos('valor_vendido'))}</td><td class="num">${mini(pct(somaTipos('vendidos'), cadastrados))}</td></tr></tfoot>` : ''}
+        </table>
+      </section>
+
+      <section id="secao-pedidos" class="quebra">
+        <h2>Vendas pedido a pedido <small>${plural(pedidos.length, 'pedido pago', 'pedidos pagos')}</small></h2>
+        <table class="tabela-pequena">
+          <thead><tr><th>Pedido</th><th>Pago em</th><th>Cliente</th><th>Vendedor / caixa</th><th>Móveis</th><th>Pagamento</th><th class="num">Total</th></tr></thead>
+          <tbody>${pedidos.map((p) => `<tr>
+              <td class="cod">#${p.id}</td>
+              <td class="num" style="text-align:left">${dataHora(p.pago_em)}</td>
+              <td>${esc(p.cliente_nome)}${p.cidade_nome ? `<div class="sub-linha">${esc(p.cidade_nome)}</div>` : ''}</td>
+              <td>${esc(p.vendedor_nome)}<div class="sub-linha">${esc(p.caixa_nome ?? '')}</div></td>
+              <td>${p.itens.map((i) => `<span class="cod">${codigo(i.codigo)}</span> ${esc(i.tipo_nome ?? '')}`).join('<br>')}</td>
+              <td>${p.pagamentos.map((x) => `<div class="pag"><i style="background:var(--${x.forma})"></i>${NOME_CURTO[x.forma]} ${reais(x.valor_centavos)}</div>`).join('')}</td>
+              <td class="num"><strong>${reais(p.total_centavos)}</strong></td></tr>`).join('')
+            || '<tr><td colspan="7" class="vazio">Nenhuma venda paga ainda.</td></tr>'}</tbody>
+          ${pedidos.length ? `<tfoot><tr><td colspan="6">Total vendido</td><td class="num">${reais(total)}</td></tr></tfoot>` : ''}
+        </table>
+      </section>
+
+      <section id="secao-sobras" class="quebra">
+        <h2>Móveis que não foram vendidos <small>${plural(sobras.length, 'móvel', 'móveis')} · ${reais(valorSobras)} pelo preço da etiqueta</small></h2>
+        <table class="tabela-pequena">
+          <thead><tr><th style="width:14mm">Nº</th><th>Descrição</th><th style="width:22mm">Situação</th><th class="num" style="width:26mm">Preço</th></tr></thead>
+          <tbody>${[...gruposSobras].map(([tipo, lista]) => `
+              <tr class="grupo"><td colspan="3">${esc(tipo)} <span class="sub-linha">· ${plural(lista.length, 'móvel', 'móveis')}</span></td>
+                <td class="num">${reais(lista.reduce((s, m) => s + m.preco_centavos, 0))}</td></tr>
+              ${lista.map((m) => `<tr>
+                <td class="cod">${codigo(m.codigo)}</td><td>${esc(m.descricao) || '<span class="sub-linha">—</span>'}</td>
+                <td><span class="chip ${m.status}">${m.status === 'reservado' ? 'Reservado' : 'Disponível'}</span></td>
+                <td class="num">${reais(m.preco_centavos)}</td></tr>`).join('')}`).join('')
+            || '<tr><td colspan="4" class="vazio">Todos os móveis cadastrados foram vendidos. 🎉</td></tr>'}</tbody>
+          ${sobras.length ? `<tfoot><tr><td colspan="3">Total que sobrou</td><td class="num">${reais(valorSobras)}</td></tr></tfoot>` : ''}
+        </table>
+        ${semCadastro.length ? `<div class="sem-cadastro"><strong>${plural(semCadastro.length, 'etiqueta sem cadastro', 'etiquetas sem cadastro')}</strong>
+          (sem tipo e preço, fora das contas acima): ${faixas(semCadastro)}</div>` : ''}
+      </section>
+
+      <div class="assinaturas">
+        <div>Responsável pelo bazar</div>
+        <div>Recebido por · data ____/____/______</div>
+      </div>`;
+
+    for (const [caixa, secao] of [['mostrar-pedidos', 'secao-pedidos'], ['mostrar-sobras', 'secao-sobras']]) {
+      document.getElementById(caixa).addEventListener('change', (e) => {
+        document.getElementById(secao).classList.toggle('oculto', !e.target.checked);
+      });
+    }
+  </script>
+</body>
+</html>

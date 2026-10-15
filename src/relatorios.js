@@ -1,4 +1,5 @@
 import { codigoFmt } from './util.js';
+import { SQL_MOVEL } from './db.js';
 
 const porNome = (a, b) => a.nome.localeCompare(b.nome, 'pt-BR');
 
@@ -8,7 +9,8 @@ export function estoquePorTipo(db) {
            COALESCE(SUM(m.status = 'disponivel'), 0) AS disponiveis,
            COALESCE(SUM(m.status = 'reservado'), 0) AS reservados,
            COALESCE(SUM(m.status = 'vendido'), 0) AS vendidos,
-           COALESCE(SUM(m.preco_centavos), 0) AS valor_total
+           COALESCE(SUM(m.preco_centavos), 0) AS valor_total,
+           COALESCE(SUM(CASE WHEN m.status = 'vendido' THEN m.preco_centavos END), 0) AS valor_vendido
     FROM tipos t JOIN moveis m ON m.tipo_id = t.id
     GROUP BY t.id`).all().sort(porNome);
 }
@@ -98,6 +100,17 @@ export function romaneio(db, vendas, { pendentes = true } = {}) {
     WHERE p.status = 'pago' ${pendentes ? 'AND p.entregue = 0' : ''}
     ORDER BY ci.nome COLLATE NOCASE, p.bairro COLLATE NOCASE, p.rua COLLATE NOCASE, p.id`).all();
   return ids.map(({ id }) => vendas.pedido(id));
+}
+
+// Relatório completo para entregar ao dono do bazar: o resumo, cada venda paga e tudo o que sobrou.
+export function relatorioFinal(db, vendas) {
+  const pagos = db.prepare(`SELECT id FROM pedidos WHERE status = 'pago' ORDER BY pago_em, id`).all();
+  return {
+    resumo: resumo(db),
+    pedidos: pagos.map(({ id }) => vendas.pedido(id)),
+    nao_vendidos: db.prepare(`${SQL_MOVEL} WHERE m.status IN ('disponivel', 'reservado') ORDER BY t.nome COLLATE NOCASE, m.codigo`).all(),
+    sem_cadastro: db.prepare(`SELECT codigo FROM moveis WHERE status = 'sem_cadastro' ORDER BY codigo`).all().map((r) => r.codigo),
+  };
 }
 
 const NOME_FORMA = { dinheiro: 'Dinheiro', pix: 'Pix', cartao: 'Cartão', entrega: 'Na entrega' };

@@ -167,6 +167,10 @@ export function criarApp({ pastaDados, pastaPublica, timers = true }) {
     return relatorios.resumo(db);
   });
   rota('GET', '/api/relatorios/romaneio', ADMIN, ({ query }) => relatorios.romaneio(db, vendas, { pendentes: query.pendentes !== '0' }));
+  rota('GET', '/api/relatorios/final', ADMIN, () => {
+    vendas.expirarVencidos();
+    return relatorios.relatorioFinal(db, vendas);
+  });
   rota('GET', '/api/relatorios/vendas.csv', ADMIN, ({ res }) => {
     const nome = `vendas-bazar-${new Date().toISOString().slice(0, 10)}.csv`;
     res.writeHead(200, { 'Content-Type': 'text/csv; charset=utf-8', 'Content-Disposition': `attachment; filename="${nome}"` });

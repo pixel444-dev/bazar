@@ -57,6 +57,9 @@ Para imprimir o comprovante sem a janela de impressão aparecer toda vez, abra o
 - *Entregas:* marque cada pedido entregue. *Imprimir romaneio* gera a folha A4 para o motorista.
   Nos pedidos com pagamento na entrega, o sistema pergunta se o entregador recebeu o valor antes de marcar;
   o painel mostra quanto ainda falta cobrar.
+- *Painel → Relatório de vendas (PDF)* abre o relatório em A4 para entregar ao dono do bazar: total vendido,
+  formas de pagamento, fechamento de cada caixa, desempenho de cada vendedor, vendas por tipo, a lista de
+  pedidos e os móveis que sobraram. Clique em *Salvar PDF / Imprimir* e escolha **Salvar como PDF** em *Destino*.
 - *Painel → Planilha de vendas (Excel)* exporta tudo.
 
 ## Segurança dos dados

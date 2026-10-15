@@ -202,6 +202,13 @@ test('relatórios: fechamento de caixa, romaneio e planilha', async () => {
   assert.equal(r.previsao.sem_preco, 2);
   assert.equal(r.tipos.find((t) => t.nome === 'Cama').valor_total, 48000);
 
+  assert.equal((await carla.req('GET', '/api/relatorios/final')).status, 403);
+  const final = ok(await admin.req('GET', '/api/relatorios/final'));
+  assert.equal(final.pedidos.reduce((s, p) => s + p.total_centavos, 0), 60000);
+  assert.equal(final.nao_vendidos.reduce((s, m) => s + m.preco_centavos, 0), 18000);
+  assert.deepEqual(final.sem_cadastro, [5, 6]);
+  assert.equal(final.resumo.tipos.reduce((s, t) => s + t.valor_vendido, 0), 60000);
+
   assert.equal((await carla.req('GET', '/api/relatorios/romaneio')).status, 403);
   const romaneio = ok(await admin.req('GET', '/api/relatorios/romaneio'));
   assert.equal(romaneio.length, 2);

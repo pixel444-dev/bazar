@@ -111,6 +111,7 @@ async function carregarPainel() {
       <div class="cartao">
         <h2>Relatórios</h2>
         <div class="grupo-botoes">
+          <a class="botao primario" href="/imprimir/relatorio.html" target="_blank">Relatório de vendas (PDF)</a>
           <a class="botao primario" href="/imprimir/romaneio.html" target="_blank">Romaneio de entrega</a>
           <a class="botao secundario" href="/api/relatorios/vendas.csv">Planilha de vendas (Excel)</a>
         </div>
