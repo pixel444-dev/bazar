@@ -220,3 +220,65 @@ test('backup gera arquivo de banco', async () => {
   const b = ok(await admin.req('POST', '/api/admin/backup'));
   assert.ok(fs.existsSync(b.arquivo));
 });
+
+test('pagamento na entrega: sai do romaneio para o entregador cobrar e não entra na gaveta', async () => {
+  ok(await beto.req('POST', '/api/rascunho/itens', { codigo: 2 }));
+  const p = ok(await beto.req('POST', '/api/rascunho/finalizar', dadosCliente(cidadeId)));
+  const antes = ok(await admin.req('GET', '/api/relatorios/resumo'));
+
+  const comTroco = await carla.req('POST', `/api/pedidos/${p.id}/pagar`, {
+    pagamentos: [{ forma: 'entrega', valor_centavos: p.total_centavos }], troco_centavos: 1000,
+  });
+  assert.equal(comTroco.status, 400, 'troco só sai da parte em dinheiro');
+
+  const pago = ok(await carla.req('POST', `/api/pedidos/${p.id}/pagar`, {
+    pagamentos: [{ forma: 'pix', valor_centavos: 5000 }, { forma: 'entrega', valor_centavos: p.total_centavos - 5000 }],
+  }));
+  assert.equal(pago.status, 'pago');
+  const aCobrar = p.total_centavos - 5000;
+
+  const r = ok(await admin.req('GET', '/api/relatorios/resumo'));
+  assert.equal(r.formas.entrega, aCobrar);
+  assert.equal(r.formas.dinheiro, antes.formas.dinheiro, 'não entra no dinheiro da gaveta');
+  assert.equal(r.formas.total, antes.formas.total + p.total_centavos);
+  assert.equal(r.caixas.find((c) => c.nome === 'Carla').entrega, aCobrar);
+  assert.equal(r.entregas.a_receber, aCobrar);
+  assert.equal(r.entregas.recebido_na_entrega, 0);
+
+  const noRomaneio = ok(await admin.req('GET', '/api/relatorios/romaneio')).find((x) => x.id === p.id);
+  assert.deepEqual(noRomaneio.pagamentos.find((x) => x.forma === 'entrega'), { forma: 'entrega', valor_centavos: aCobrar });
+
+  ok(await admin.req('POST', `/api/pedidos/${p.id}/entrega`, { entregue: true }));
+  const depois = ok(await admin.req('GET', '/api/relatorios/resumo'));
+  assert.equal(depois.entregas.a_receber, 0);
+  assert.equal(depois.entregas.recebido_na_entrega, aCobrar);
+
+  const csv = await admin.req('GET', '/api/relatorios/vendas.csv');
+  assert.ok(csv.dados.includes(`Pix 50,00 + Na entrega ${(aCobrar / 100).toFixed(2).replace('.', ',')}`));
+});
+
+test('banco antigo ganha a forma de pagamento na entrega sem perder pagamentos', async () => {
+  const { abrirBanco } = await import('../src/db.js');
+  const arquivo = path.join(pasta, 'antigo.db');
+  let db = abrirBanco(arquivo);
+  db.exec(`DROP TABLE pagamentos;
+    CREATE TABLE pagamentos (
+      id INTEGER PRIMARY KEY,
+      pedido_id INTEGER NOT NULL REFERENCES pedidos(id),
+      forma TEXT NOT NULL CHECK (forma IN ('dinheiro', 'pix', 'cartao')),
+      valor_centavos INTEGER NOT NULL CHECK (valor_centavos > 0),
+      caixa_id INTEGER NOT NULL REFERENCES usuarios(id),
+      criado_em INTEGER NOT NULL
+    );
+    INSERT INTO pedidos (id, vendedor_id, status, criado_em) VALUES (1, 1, 'pago', 0);
+    INSERT INTO pagamentos (pedido_id, forma, valor_centavos, caixa_id, criado_em) VALUES (1, 'pix', 900, 1, 0);`);
+  assert.throws(() => db.exec(`INSERT INTO pagamentos (pedido_id, forma, valor_centavos, caixa_id, criado_em) VALUES (1, 'entrega', 100, 1, 0)`));
+  db.close();
+
+  db = abrirBanco(arquivo);
+  db.exec(`INSERT INTO pagamentos (pedido_id, forma, valor_centavos, caixa_id, criado_em) VALUES (1, 'entrega', 100, 1, 0)`);
+  assert.deepEqual(db.prepare('SELECT forma, valor_centavos FROM pagamentos ORDER BY id').all().map((x) => ({ ...x })),
+    [{ forma: 'pix', valor_centavos: 900 }, { forma: 'entrega', valor_centavos: 100 }]);
+  assert.ok(db.prepare("SELECT 1 FROM sqlite_master WHERE name = 'idx_pagamentos_pedido'").get());
+  db.close();
+});

@@ -207,8 +207,9 @@ input[type=checkbox] { display: inline-block; width: 20px; height: 20px; margin:
 .total-grande { font-size: 1.6rem !important; }
 .pagamento { margin-top: 16px; padding-top: 16px; border-top: 1px solid var(--borda); }
 .atalhos { display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 12px; }
-.grade-pagamento { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; }
-@media (max-width: 560px) { .grade-pagamento { grid-template-columns: 1fr; } }
+.grade-pagamento { display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; }
+@media (max-width: 760px) { .grade-pagamento { grid-template-columns: 1fr 1fr; } }
+@media (max-width: 420px) { .grade-pagamento { grid-template-columns: 1fr; } }
 .conta { font-size: 1.15rem; padding: 6px 0 4px; }
 .conta .ok { color: var(--ok); font-weight: 800; }
 .conta .erro { color: var(--erro); font-weight: 800; }

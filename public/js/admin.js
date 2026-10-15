@@ -1,6 +1,6 @@
 import {
   api, aviso, esc, reais, codigo, dataHora, iniciarPagina, ouvirMudancas, ativarAbas, lerFormulario,
-  seloMovel, telefoneFmt, enderecoFmt, paraCentavos, centavosParaTexto, ROTULO_PAPEL,
+  seloMovel, telefoneFmt, enderecoFmt, paraCentavos, centavosParaTexto, ROTULO_PAPEL, aReceberNaEntrega,
 } from './comum.js';
 
 let { config } = await iniciarPagina({ titulo: 'Administração', papeis: ['admin'] });
@@ -56,6 +56,7 @@ async function carregarPainel() {
       <div class="estatistica"><small>Dinheiro</small><strong>${reais(r.formas.dinheiro)}</strong></div>
       <div class="estatistica"><small>Pix</small><strong>${reais(r.formas.pix)}</strong></div>
       <div class="estatistica"><small>Cartão</small><strong>${reais(r.formas.cartao)}</strong></div>
+      <div class="estatistica"><small>Na entrega (falta cobrar)</small><strong>${reais(r.entregas.a_receber)}</strong></div>
       <div class="estatistica"><small>Pedidos pagos</small><strong>${r.pedidos.pago}</strong></div>
       <div class="estatistica"><small>Aguardando no caixa</small><strong>${r.pedidos.aguardando}</strong></div>
     </div>
@@ -87,9 +88,9 @@ async function carregarPainel() {
       <div class="cartao">
         <h2>Por caixa</h2>
         <div class="rolagem"><table class="tabela">
-          <thead><tr><th>Caixa</th><th class="num">Dinheiro</th><th class="num">Pix</th><th class="num">Cartão</th></tr></thead>
-          <tbody>${r.caixas.map((c) => `<tr><td>${esc(c.nome)}</td><td class="num">${reais(c.dinheiro)}</td><td class="num">${reais(c.pix)}</td><td class="num">${reais(c.cartao)}</td></tr>`).join('')
-            || '<tr><td colspan="4" class="vazio">Nenhum pagamento ainda.</td></tr>'}</tbody>
+          <thead><tr><th>Caixa</th><th class="num">Dinheiro</th><th class="num">Pix</th><th class="num">Cartão</th><th class="num">Na entrega</th></tr></thead>
+          <tbody>${r.caixas.map((c) => `<tr><td>${esc(c.nome)}</td><td class="num">${reais(c.dinheiro)}</td><td class="num">${reais(c.pix)}</td><td class="num">${reais(c.cartao)}</td><td class="num">${reais(c.entrega)}</td></tr>`).join('')
+            || '<tr><td colspan="5" class="vazio">Nenhum pagamento ainda.</td></tr>'}</tbody>
         </table></div>
       </div>
       <div class="cartao">
@@ -268,12 +269,13 @@ async function carregarEntregas() {
       <h3>${esc(cidade)} <small>(${pedidos.length})</small></h3>
       ${pedidos.map((p) => `
         <div class="entrega">
-          <input type="checkbox" data-entrega="${p.id}" ${p.entregue ? 'checked' : ''} aria-label="Pedido #${p.id} entregue">
+          <input type="checkbox" data-entrega="${p.id}" data-cobrar="${aReceberNaEntrega(p)}" ${p.entregue ? 'checked' : ''} aria-label="Pedido #${p.id} entregue">
           <div class="info">
             <div class="linha-topo"><strong>#${p.id} · ${esc(p.cliente_nome)}</strong><span>${esc(telefoneFmt(p.telefone))}</span></div>
             <div>${esc(enderecoFmt(p))}</div>
             <div class="suave">${p.itens.map((i) => `${codigo(i.codigo)} ${esc(i.tipo_nome)}`).join(' · ')}</div>
             ${p.observacao ? `<div class="suave">Obs.: ${esc(p.observacao)}</div>` : ''}
+            ${aReceberNaEntrega(p) ? `<div class="mensagem alerta" style="margin:6px 0 0">${p.entregue ? 'Recebido na entrega' : 'Cobrar na entrega'}: ${reais(aReceberNaEntrega(p))}</div>` : ''}
           </div>
         </div>`).join('')}
     </div>`).join('');
@@ -283,6 +285,11 @@ $('#mostrar-entregues').addEventListener('change', () => carregarEntregas());
 $('#lista-entregas').addEventListener('change', async (e) => {
   const caixa = e.target.closest('[data-entrega]');
   if (!caixa) return;
+  const cobrar = caixa.dataset.cobrar && Number(caixa.dataset.cobrar);
+  if (caixa.checked && cobrar && !confirm(`O entregador recebeu ${reais(cobrar)} do cliente do pedido #${caixa.dataset.entrega}?`)) {
+    caixa.checked = false;
+    return;
+  }
   try {
     await api('POST', `/api/pedidos/${caixa.dataset.entrega}/entrega`, { entregue: caixa.checked });
     aviso(caixa.checked ? `Pedido #${caixa.dataset.entrega} entregue.` : 'Entrega desmarcada.', 'ok', 2000);

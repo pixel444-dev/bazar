@@ -1,7 +1,7 @@
 import {
   api, aviso, esc, reais, codigo, hora, dataHora, iniciarPagina, ouvirMudancas, ativarAbas, camposCliente, lerFormulario,
   seloStatus, descricaoMovel, telefoneFmt, enderecoFmt, paraCentavos, centavosParaTexto, imprimirComprovante, reduzirImagem,
-  atualizarContadores, ROTULO_FORMA,
+  atualizarContadores, ROTULO_FORMA, aReceberNaEntrega,
 } from './comum.js';
 
 const { usuario, config } = await iniciarPagina({ titulo: 'Caixa', papeis: ['caixa', 'admin'] });
@@ -102,12 +102,15 @@ function formPagamento() {
         <button type="button" class="botao secundario" data-tudo="dinheiro">Tudo em dinheiro</button>
         <button type="button" class="botao secundario" data-tudo="pix">Tudo no Pix</button>
         <button type="button" class="botao secundario" data-tudo="cartao">Tudo no cartão</button>
+        <button type="button" class="botao secundario" data-tudo="entrega">Tudo na entrega</button>
       </div>
       <div class="grade-pagamento">
         <label>Dinheiro<input name="dinheiro" inputmode="decimal" placeholder="0,00"></label>
         <label>Pix<input name="pix" inputmode="decimal" placeholder="0,00"></label>
         <label>Cartão<input name="cartao" inputmode="decimal" placeholder="0,00"></label>
+        <label>Na entrega<input name="entrega" inputmode="decimal" placeholder="0,00"></label>
       </div>
+      <p class="dica aviso-entrega" hidden>O cliente paga esse valor ao entregador quando receber o móvel. Ele sai no romaneio para o entregador cobrar.</p>
       <label class="recebido" hidden>Quanto o cliente entregou em dinheiro? (para calcular o troco)
         <input name="recebido" inputmode="decimal" placeholder="0,00">
       </label>
@@ -123,7 +126,10 @@ function blocoPago(p) {
       ${p.pagamentos.map((x) => `<div class="linha-topo"><span>${ROTULO_FORMA[x.forma]}</span><strong>${reais(x.valor_centavos)}</strong></div>`).join('')}
       ${p.troco_centavos ? `<div class="linha-topo"><span>Recebido em dinheiro</span><span>${reais(p.pagamentos.filter((x) => x.forma === 'dinheiro').reduce((s, x) => s + x.valor_centavos, 0) + p.troco_centavos)}</span></div>
       <div class="linha-topo"><span>Troco dado</span><span>${reais(p.troco_centavos)}</span></div>` : ''}
-      <p class="suave">Recebido por ${esc(p.caixa_nome)} às ${hora(p.pago_em)}${p.entregue ? ' · <strong>já entregue</strong>' : ''}</p>
+      ${aReceberNaEntrega(p) ? `<div class="mensagem alerta">${p.entregue
+        ? `Entregue: o entregador recebeu ${reais(aReceberNaEntrega(p))} do cliente.`
+        : `O entregador vai cobrar <strong>${reais(aReceberNaEntrega(p))}</strong> do cliente na entrega.`}</div>` : ''}
+      <p class="suave">Confirmado por ${esc(p.caixa_nome)} às ${hora(p.pago_em)}${p.entregue ? ' · <strong>já entregue</strong>' : ''}</p>
       <button class="botao primario" id="imprimir">Imprimir comprovante</button>
     </div>`;
 }
@@ -275,15 +281,17 @@ function ligarPagamento(form, p) {
     const din = v('dinheiro');
     const pix = v('pix');
     const cartao = v('cartao');
+    const entrega = v('entrega');
     const recebido = v('recebido');
-    const invalido = [din, pix, cartao, recebido].some(Number.isNaN);
-    const soma = din + pix + cartao;
+    const invalido = [din, pix, cartao, entrega, recebido].some(Number.isNaN);
+    const soma = din + pix + cartao + entrega;
     const falta = p.total_centavos - soma;
     // Se passou do total e o excesso cabe no dinheiro, o que passou é troco:
     // o campo Dinheiro vira "quanto o cliente entregou".
     const trocoDoExcesso = !invalido && falta < 0 && -falta < din;
     const dinNoCaixa = trocoDoExcesso ? din + falta : din;
     form.querySelector('.recebido').hidden = !(din > 0) || trocoDoExcesso;
+    form.querySelector('.aviso-entrega').hidden = !(entrega > 0);
     let ok = !invalido && (falta === 0 || trocoDoExcesso);
     let html;
     let troco = 0;
@@ -306,7 +314,7 @@ function ligarPagamento(form, p) {
     conta.innerHTML = html;
     botao.disabled = !ok;
     calculo = {
-      pagamentos: [['dinheiro', dinNoCaixa], ['pix', pix], ['cartao', cartao]]
+      pagamentos: [['dinheiro', dinNoCaixa], ['pix', pix], ['cartao', cartao], ['entrega', entrega]]
         .filter(([, valor]) => valor > 0)
         .map(([forma, valor]) => ({ forma, valor_centavos: valor })),
       troco_centavos: Math.max(0, troco),
@@ -317,7 +325,7 @@ function ligarPagamento(form, p) {
   form.querySelector('.atalhos').addEventListener('click', (e) => {
     const b = e.target.closest('[data-tudo]');
     if (!b) return;
-    for (const nome of ['dinheiro', 'pix', 'cartao']) campos[nome].value = nome === b.dataset.tudo ? centavosParaTexto(p.total_centavos) : '';
+    for (const nome of ['dinheiro', 'pix', 'cartao', 'entrega']) campos[nome].value = nome === b.dataset.tudo ? centavosParaTexto(p.total_centavos) : '';
     campos.recebido.value = '';
     recalcular();
     if (b.dataset.tudo === 'dinheiro') campos.recebido.focus();
@@ -329,7 +337,8 @@ function ligarPagamento(form, p) {
     botao.disabled = true;
     try {
       await api('POST', `/api/pedidos/${p.id}/pagar`, calculo);
-      aviso(`Pedido #${p.id} pago!${calculo.troco_centavos ? ` Troco: ${reais(calculo.troco_centavos)}` : ''}`, 'ok', 6000);
+      const naEntrega = calculo.pagamentos.find((x) => x.forma === 'entrega')?.valor_centavos;
+      aviso(`Pedido #${p.id} confirmado!${calculo.troco_centavos ? ` Troco: ${reais(calculo.troco_centavos)}` : ''}${naEntrega ? ` ${reais(naEntrega)} a cobrar na entrega.` : ''}`, 'ok', 6000);
       imprimirComprovante(p.id);
       await abrir(p.id, true);
       carregarLista();
@@ -347,21 +356,23 @@ async function carregarFechamento() {
   const r = await api('GET', '/api/relatorios/resumo');
   const linha = (c, destaque) => `<tr ${destaque ? 'style="font-weight:700"' : ''}>
       <td>${esc(c.nome)}</td><td class="num">${c.pedidos ?? 0}</td><td class="num">${reais(c.dinheiro)}</td>
-      <td class="num">${reais(c.pix)}</td><td class="num">${reais(c.cartao)}</td><td class="num">${reais(c.total)}</td></tr>`;
+      <td class="num">${reais(c.pix)}</td><td class="num">${reais(c.cartao)}</td><td class="num">${reais(c.entrega)}</td><td class="num">${reais(c.total)}</td></tr>`;
   const meu = r.caixas.find((c) => c.caixa_id === usuario.id);
   $('#fechamento').innerHTML = `
     <div class="estatisticas">
       <div class="estatistica principal"><small>Meu caixa: dinheiro na gaveta</small><strong>${reais(meu?.dinheiro ?? 0)}</strong></div>
       <div class="estatistica"><small>Meu caixa: Pix</small><strong>${reais(meu?.pix ?? 0)}</strong></div>
       <div class="estatistica"><small>Meu caixa: cartão</small><strong>${reais(meu?.cartao ?? 0)}</strong></div>
+      <div class="estatistica"><small>Meu caixa: pago na entrega</small><strong>${reais(meu?.entrega ?? 0)}</strong></div>
       <div class="estatistica"><small>Meus pedidos pagos</small><strong>${meu?.pedidos ?? 0}</strong></div>
     </div>
     <div class="cartao">
       <div class="linha-topo"><h2>Todos os caixas</h2><button class="botao secundario nao-imprimir" onclick="window.print()">Imprimir</button></div>
-      <p class="dica">O valor em dinheiro já desconta o troco. Some o fundo de troco que a gaveta tinha no início.</p>
+      <p class="dica">O valor em dinheiro já desconta o troco. Some o fundo de troco que a gaveta tinha no início.
+        "Na entrega" não está na gaveta: é o que os entregadores cobram dos clientes.</p>
       <div class="rolagem"><table class="tabela">
-        <thead><tr><th>Caixa</th><th class="num">Pedidos</th><th class="num">Dinheiro</th><th class="num">Pix</th><th class="num">Cartão</th><th class="num">Total</th></tr></thead>
-        <tbody>${r.caixas.map((c) => linha(c)).join('') || '<tr><td colspan="6" class="vazio">Nenhum pagamento ainda.</td></tr>'}</tbody>
+        <thead><tr><th>Caixa</th><th class="num">Pedidos</th><th class="num">Dinheiro</th><th class="num">Pix</th><th class="num">Cartão</th><th class="num">Na entrega</th><th class="num">Total</th></tr></thead>
+        <tbody>${r.caixas.map((c) => linha(c)).join('') || '<tr><td colspan="7" class="vazio">Nenhum pagamento ainda.</td></tr>'}</tbody>
         <tfoot>${linha({ nome: 'Total geral', pedidos: r.pedidos.pago, ...r.formas }, true)}</tfoot>
       </table></div>
       <p class="suave">Atualizado às ${hora(Date.now())}</p>

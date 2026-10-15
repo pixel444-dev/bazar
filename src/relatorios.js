@@ -21,7 +21,7 @@ export function resumo(db) {
     pedidos[r.status] = r.n;
   }
 
-  const formas = { dinheiro: 0, pix: 0, cartao: 0, total: 0 };
+  const formas = { dinheiro: 0, pix: 0, cartao: 0, entrega: 0, total: 0 };
   const caixas = new Map();
   const linhas = db.prepare(`
     SELECT pg.caixa_id, u.nome, pg.forma, SUM(pg.valor_centavos) AS total, COUNT(DISTINCT pg.pedido_id) AS pedidos
@@ -32,7 +32,7 @@ export function resumo(db) {
   for (const l of linhas) {
     formas[l.forma] += l.total;
     formas.total += l.total;
-    const c = caixas.get(l.caixa_id) ?? { caixa_id: l.caixa_id, nome: l.nome, dinheiro: 0, pix: 0, cartao: 0, total: 0 };
+    const c = caixas.get(l.caixa_id) ?? { caixa_id: l.caixa_id, nome: l.nome, dinheiro: 0, pix: 0, cartao: 0, entrega: 0, total: 0 };
     c[l.forma] += l.total;
     c.total += l.total;
     caixas.set(l.caixa_id, c);
@@ -55,6 +55,14 @@ export function resumo(db) {
   const entregas = db.prepare(`
     SELECT COALESCE(SUM(entregue = 1), 0) AS entregues, COALESCE(SUM(entregue = 0), 0) AS pendentes
     FROM pedidos WHERE status = 'pago'`).get();
+  // Pagamento na entrega: o que o entregador ainda vai cobrar e o que já cobrou (pedido marcado como entregue).
+  const naEntrega = db.prepare(`
+    SELECT COALESCE(SUM(CASE WHEN p.entregue = 0 THEN pg.valor_centavos END), 0) AS a_receber,
+           COALESCE(SUM(CASE WHEN p.entregue = 1 THEN pg.valor_centavos END), 0) AS recebido
+    FROM pagamentos pg JOIN pedidos p ON p.id = pg.pedido_id AND p.status = 'pago'
+    WHERE pg.forma = 'entrega'`).get();
+  entregas.a_receber = naEntrega.a_receber;
+  entregas.recebido_na_entrega = naEntrega.recebido;
 
   return {
     moveis,
@@ -75,7 +83,7 @@ export function romaneio(db, vendas, { pendentes = true } = {}) {
   return ids.map(({ id }) => vendas.pedido(id));
 }
 
-const NOME_FORMA = { dinheiro: 'Dinheiro', pix: 'Pix', cartao: 'Cartão' };
+const NOME_FORMA = { dinheiro: 'Dinheiro', pix: 'Pix', cartao: 'Cartão', entrega: 'Na entrega' };
 const valorBr = (centavos) => (centavos / 100).toFixed(2).replace('.', ',');
 const celula = (v) => `"${String(v ?? '').replaceAll('"', '""')}"`;
 

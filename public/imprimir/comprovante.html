@@ -26,9 +26,10 @@
 <body>
   <div class="cupom" id="cupom">Carregando…</div>
   <script type="module">
-    import { api, esc, reais, codigo, dataHora, telefoneFmt, ROTULO_FORMA } from '/js/comum.js';
+    import { api, esc, reais, codigo, dataHora, telefoneFmt, ROTULO_FORMA, aReceberNaEntrega } from '/js/comum.js';
     const q = new URLSearchParams(location.search);
     const [p, config] = await Promise.all([api('GET', `/api/pedidos/${Number(q.get('pedido'))}`), api('GET', '/api/config')]);
+    const naEntrega = aReceberNaEntrega(p);
     const dinheiro = p.pagamentos.filter((x) => x.forma === 'dinheiro').reduce((s, x) => s + x.valor_centavos, 0);
     document.getElementById('cupom').innerHTML = `
       <h1>${esc(config.nome_evento)}</h1>
@@ -42,6 +43,8 @@
       ${p.pagamentos.map((x) => `<div class="linha"><span>${ROTULO_FORMA[x.forma]}</span><span>${reais(x.valor_centavos)}</span></div>`).join('')}
       ${p.troco_centavos ? `<div class="linha"><span>Recebido em dinheiro</span><span>${reais(dinheiro + p.troco_centavos)}</span></div>
       <div class="linha"><span>Troco</span><span>${reais(p.troco_centavos)}</span></div>` : ''}
+      ${naEntrega ? `<hr><div class="centro"><b>A PAGAR NA ENTREGA</b></div><div class="pedido" style="font-size:16pt">${reais(naEntrega)}</div>
+      <div class="centro pequeno">Pague esse valor ao entregador quando receber o móvel.</div>` : ''}
       <hr>
       <div><b>Entrega para:</b></div>
       <div>${esc(p.cliente_nome)}</div>

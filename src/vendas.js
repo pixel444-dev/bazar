@@ -1,7 +1,8 @@
 import { ErroHttp, reais, codigoFmt, texto } from './util.js';
 import { transacao, lerConfig, buscarMovel } from './db.js';
 
-export const FORMAS = ['dinheiro', 'pix', 'cartao'];
+// 'entrega': o cliente paga ao entregador quando recebe o móvel.
+export const FORMAS = ['dinheiro', 'pix', 'cartao', 'entrega'];
 
 const ROTULO = {
   rascunho: 'em andamento',

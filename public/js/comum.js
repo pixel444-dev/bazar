@@ -8,7 +8,7 @@ export const ROTULO_STATUS = {
   expirado: 'Expirado',
 };
 export const ROTULO_MOVEL = { sem_cadastro: 'Sem cadastro', disponivel: 'Disponível', reservado: 'Reservado', vendido: 'Vendido' };
-export const ROTULO_FORMA = { dinheiro: 'Dinheiro', pix: 'Pix', cartao: 'Cartão' };
+export const ROTULO_FORMA = { dinheiro: 'Dinheiro', pix: 'Pix', cartao: 'Cartão', entrega: 'Pagamento na entrega' };
 export const ROTULO_PAPEL = { vendedor: 'Vendedor', caixa: 'Caixa', admin: 'Administrador' };
 export const PAGINA_INICIAL = { vendedor: '/vendedor.html', caixa: '/caixa.html', admin: '/admin.html' };
 
@@ -55,6 +55,8 @@ export const codigo = (n) => String(n).padStart(3, '0');
 export const hora = (ms) => (ms ? new Date(ms).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' }) : '');
 export const dataHora = (ms) => (ms ? new Date(ms).toLocaleString('pt-BR', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' }) : '');
 export const centavosParaTexto = (c) => (c ? (c / 100).toFixed(2).replace('.', ',') : '');
+// Quanto o entregador tem que cobrar do cliente ao entregar o pedido.
+export const aReceberNaEntrega = (p) => p.pagamentos.filter((x) => x.forma === 'entrega').reduce((s, x) => s + x.valor_centavos, 0);
 
 // "150" → 15000, "150,50" → 15050, "1.500" → 150000, "" → 0, lixo → NaN
 export function paraCentavos(valor) {

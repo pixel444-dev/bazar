@@ -8,8 +8,8 @@ O que ele resolve:
 - **Nenhum móvel é vendido duas vezes.** Quando o vendedor digita o número da etiqueta, o móvel fica
   reservado no nome dele na hora. Se outro vendedor tentar, aparece "Já reservado por Ana (pedido #12)".
 - **Sem fichas de papel.** Nome, telefone e endereço de entrega ficam no sistema.
-- **Controle do caixa.** Cada pagamento é registrado como dinheiro, Pix ou cartão (pode dividir),
-  com cálculo de troco e foto opcional do comprovante Pix.
+- **Controle do caixa.** Cada pagamento é registrado como dinheiro, Pix, cartão ou **pagamento na entrega**
+  (pode dividir), com cálculo de troco e foto opcional do comprovante Pix.
 - **Romaneio de entrega** em A4, agrupado por cidade e bairro, com a lista do que carregar no caminhão.
 
 ## Como ligar
@@ -41,7 +41,11 @@ Para os celulares, abra *Configurações → Acesso dos celulares* e imprima a p
 - **Caixa:** digita 47 → escolhe a forma de pagamento → *Confirmar*. O comprovante sai na térmica de 58 mm.
 - A reserva vale **20 minutos** (configurável). Se o cliente demorar na fila e expirar, o caixa clica em
   *Reativar*: o sistema reserva de novo o que ainda estiver livre.
-- **Fechamento:** aba *Fechamento do caixa* mostra dinheiro / Pix / cartão de cada caixa.
+- **Pagamento na entrega:** o cliente paga ao entregador quando recebe o móvel. O caixa lança o valor no
+  campo *Na entrega* (pode juntar com uma parte em Pix, por exemplo). O romaneio mostra em destaque
+  **COBRAR DO CLIENTE NA ENTREGA** com o valor, e o comprovante do cliente avisa quanto ele vai pagar.
+- **Fechamento:** aba *Fechamento do caixa* mostra dinheiro / Pix / cartão / na entrega de cada caixa.
+  O valor "na entrega" não está na gaveta: é o que os entregadores vão cobrar.
 
 Para imprimir o comprovante sem a janela de impressão aparecer toda vez, abra o Chrome do caixa com
 `--kiosk-printing` e deixe a térmica como impressora padrão.
@@ -49,6 +53,8 @@ Para imprimir o comprovante sem a janela de impressão aparecer toda vez, abra o
 ## Depois do bazar
 
 - *Entregas:* marque cada pedido entregue. *Imprimir romaneio* gera a folha A4 para o motorista.
+  Nos pedidos com pagamento na entrega, o sistema pergunta se o entregador recebeu o valor antes de marcar;
+  o painel mostra quanto ainda falta cobrar.
 - *Painel → Planilha de vendas (Excel)* exporta tudo.
 
 ## Segurança dos dados

@@ -79,7 +79,7 @@ CREATE TABLE IF NOT EXISTS itens (
 CREATE TABLE IF NOT EXISTS pagamentos (
   id INTEGER PRIMARY KEY,
   pedido_id INTEGER NOT NULL REFERENCES pedidos(id),
-  forma TEXT NOT NULL CHECK (forma IN ('dinheiro', 'pix', 'cartao')),
+  forma TEXT NOT NULL CHECK (forma IN ('dinheiro', 'pix', 'cartao', 'entrega')),
   valor_centavos INTEGER NOT NULL CHECK (valor_centavos > 0),
   caixa_id INTEGER NOT NULL REFERENCES usuarios(id),
   criado_em INTEGER NOT NULL
@@ -139,8 +139,24 @@ export function abrirBanco(arquivo) {
   db.exec('PRAGMA synchronous = FULL');
   db.exec('PRAGMA foreign_keys = ON');
   db.exec(ESQUEMA);
+  migrar(db);
   popular(db);
   return db;
+}
+
+// O SQLite não altera o CHECK de uma tabela: bancos criados antes do pagamento na entrega
+// têm a tabela de pagamentos recriada com a regra nova, mantendo os dados.
+function migrar(db) {
+  const { sql } = db.prepare("SELECT sql FROM sqlite_master WHERE type = 'table' AND name = 'pagamentos'").get();
+  if (sql.includes("'entrega'")) return;
+  transacao(db, () => {
+    db.exec(sql.replace('CREATE TABLE pagamentos', 'CREATE TABLE pagamentos_novo')
+      .replace("('dinheiro', 'pix', 'cartao')", "('dinheiro', 'pix', 'cartao', 'entrega')"));
+    db.exec(`INSERT INTO pagamentos_novo SELECT * FROM pagamentos;
+             DROP TABLE pagamentos;
+             ALTER TABLE pagamentos_novo RENAME TO pagamentos;
+             CREATE INDEX IF NOT EXISTS idx_pagamentos_pedido ON pagamentos(pedido_id);`);
+  });
 }
 
 function popular(db) {
