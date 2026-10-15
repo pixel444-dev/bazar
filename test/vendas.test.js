@@ -195,6 +195,12 @@ test('relatórios: fechamento de caixa, romaneio e planilha', async () => {
   assert.equal(r.caixas[0].nome, 'Carla');
   assert.equal(r.caixas[0].troco, 5000);
   assert.equal(r.moveis.vendido, 3);
+  // 3 camas (150 + 180 + 150) e um sofá (300); as etiquetas 5 e 6 ainda não têm preço.
+  assert.equal(r.previsao.total, 78000);
+  assert.equal(r.previsao.vendido, 60000);
+  assert.equal(r.previsao.disponivel + r.previsao.reservado, 18000);
+  assert.equal(r.previsao.sem_preco, 2);
+  assert.equal(r.tipos.find((t) => t.nome === 'Cama').valor_total, 48000);
 
   assert.equal((await carla.req('GET', '/api/relatorios/romaneio')).status, 403);
   const romaneio = ok(await admin.req('GET', '/api/relatorios/romaneio'));

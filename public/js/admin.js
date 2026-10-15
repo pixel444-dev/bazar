@@ -50,7 +50,22 @@ async function carregarPainel() {
   const [r, backup] = await Promise.all([api('GET', '/api/relatorios/resumo'), api('GET', '/api/admin/backup')]);
   const m = r.moveis;
   const totalMoveis = m.sem_cadastro + m.disponivel + m.reservado + m.vendido;
+  const pv = r.previsao;
+  const atingido = pv.total ? Math.round((pv.vendido / pv.total) * 100) : 0;
   $('#painel').innerHTML = `
+    <div class="cartao previsao">
+      <h2>Previsão de faturamento</h2>
+      <p class="dica">Quanto entra se todos os móveis cadastrados forem vendidos pelo preço da etiqueta.</p>
+      <div class="estatisticas">
+        <div class="estatistica principal"><small>Se vender tudo</small><strong>${reais(pv.total)}</strong></div>
+        <div class="estatistica"><small>Já vendido</small><strong>${reais(pv.vendido)}</strong></div>
+        <div class="estatistica"><small>Reservado agora</small><strong>${reais(pv.reservado)}</strong></div>
+        <div class="estatistica"><small>Ainda no galpão</small><strong>${reais(pv.disponivel)}</strong></div>
+      </div>
+      <div class="barra-progresso" role="progressbar" aria-valuenow="${atingido}" aria-valuemin="0" aria-valuemax="100"><span style="width:${atingido}%"></span></div>
+      <p class="suave">${atingido}% da previsão já foi vendido.
+        ${pv.sem_preco ? `<strong>${pv.sem_preco} etiqueta${pv.sem_preco > 1 ? 's' : ''} sem cadastro</strong> ainda não ${pv.sem_preco > 1 ? 'entram' : 'entra'} na conta.` : ''}</p>
+    </div>
     <div class="estatisticas">
       <div class="estatistica principal"><small>Total vendido</small><strong>${reais(r.formas.total)}</strong></div>
       <div class="estatistica"><small>Dinheiro</small><strong>${reais(r.formas.dinheiro)}</strong></div>
@@ -72,9 +87,9 @@ async function carregarPainel() {
       <div class="cartao">
         <h2>Por tipo</h2>
         <div class="rolagem"><table class="tabela">
-          <thead><tr><th>Tipo</th><th class="num">Total</th><th class="num">Disponíveis</th><th class="num">Reservados</th><th class="num">Vendidos</th></tr></thead>
-          <tbody>${r.tipos.map((t) => `<tr><td>${esc(t.nome)}</td><td class="num">${t.total}</td><td class="num">${t.disponiveis}</td><td class="num">${t.reservados}</td><td class="num">${t.vendidos}</td></tr>`).join('')
-            || '<tr><td colspan="5" class="vazio">Nenhum móvel cadastrado.</td></tr>'}</tbody>
+          <thead><tr><th>Tipo</th><th class="num">Total</th><th class="num">Disponíveis</th><th class="num">Reservados</th><th class="num">Vendidos</th><th class="num">Se vender tudo</th></tr></thead>
+          <tbody>${r.tipos.map((t) => `<tr><td>${esc(t.nome)}</td><td class="num">${t.total}</td><td class="num">${t.disponiveis}</td><td class="num">${t.reservados}</td><td class="num">${t.vendidos}</td><td class="num">${reais(t.valor_total)}</td></tr>`).join('')
+            || '<tr><td colspan="6" class="vazio">Nenhum móvel cadastrado.</td></tr>'}</tbody>
         </table></div>
       </div>
       <div class="cartao">

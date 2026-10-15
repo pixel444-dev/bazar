@@ -33,6 +33,8 @@ Para os celulares, abra *Configurações → Acesso dos celulares* e imprima a p
    o tipo e o preço. Ao salvar, ele já abre o próximo número com o mesmo tipo e preço preenchidos.
    Para vários iguais, use o **cadastro em lote** (ex.: do 001 ao 018, Cama, R$ 150).
 4. Em *Configurações*, informe a pasta do pendrive para backup (ex.: `E:\backup-bazar`).
+5. No *Painel*, a **Previsão de faturamento** mostra quanto entra se todos os móveis cadastrados forem
+   vendidos pelo preço da etiqueta (e quanto disso já foi vendido). Etiquetas sem cadastro ainda não entram na conta.
 
 ## No dia
 

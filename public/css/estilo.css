@@ -225,6 +225,10 @@ input[type=checkbox] { display: inline-block; width: 20px; height: 20px; margin:
 .estatistica strong { font-size: 1.45rem; font-variant-numeric: tabular-nums; }
 .estatistica.principal { background: var(--primaria); border-color: var(--primaria); color: #fff; }
 .estatistica.principal small { color: rgba(255, 255, 255, .85); }
+.previsao { margin-bottom: 12px; }
+.previsao .estatisticas { margin: 10px 0; }
+.barra-progresso { height: 10px; background: var(--borda); border-radius: 999px; overflow: hidden; margin-bottom: 6px; }
+.barra-progresso span { display: block; height: 100%; background: var(--primaria); }
 
 /* ---------- Login ---------- */
 .login { max-width: 560px; padding-top: 28px; text-align: center; }

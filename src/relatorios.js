@@ -7,7 +7,8 @@ export function estoquePorTipo(db) {
     SELECT t.id, t.nome, COUNT(m.codigo) AS total,
            COALESCE(SUM(m.status = 'disponivel'), 0) AS disponiveis,
            COALESCE(SUM(m.status = 'reservado'), 0) AS reservados,
-           COALESCE(SUM(m.status = 'vendido'), 0) AS vendidos
+           COALESCE(SUM(m.status = 'vendido'), 0) AS vendidos,
+           COALESCE(SUM(m.preco_centavos), 0) AS valor_total
     FROM tipos t JOIN moveis m ON m.tipo_id = t.id
     GROUP BY t.id`).all().sort(porNome);
 }
@@ -64,10 +65,26 @@ export function resumo(db) {
   entregas.a_receber = naEntrega.a_receber;
   entregas.recebido_na_entrega = naEntrega.recebido;
 
+  // Quanto entra se tudo o que tem preço for vendido: o que já foi pago mais o preço de quem ainda está no galpão.
+  // Etiquetas sem cadastro ficam de fora, porque ainda não têm preço.
+  const precos = { disponivel: 0, reservado: 0 };
+  for (const r of db.prepare(`
+    SELECT status, SUM(preco_centavos) AS total FROM moveis WHERE status IN ('disponivel', 'reservado') GROUP BY status`).all()) {
+    precos[r.status] = r.total;
+  }
+  const previsao = {
+    vendido: formas.total,
+    reservado: precos.reservado,
+    disponivel: precos.disponivel,
+    total: formas.total + precos.reservado + precos.disponivel,
+    sem_preco: moveis.sem_cadastro,
+  };
+
   return {
     moveis,
     pedidos,
     formas,
+    previsao,
     caixas: [...caixas.values()].sort(porNome),
     vendedores,
     entregas,
