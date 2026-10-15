@@ -1,0 +1,66 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Etiquetas</title>
+  <link rel="icon" href="/icone.svg">
+  <style>
+    @page { size: A4; margin: 0; }
+    * { box-sizing: border-box; }
+    body { margin: 0; font-family: system-ui, "Segoe UI", Roboto, Arial, sans-serif; color: #000; }
+    /* 3 colunas x 8 linhas = 24 etiquetas por folha A4 */
+    .folha {
+      width: 210mm; height: 297mm; padding: 0;
+      display: grid; grid-template-columns: repeat(3, 70mm); grid-template-rows: repeat(8, 37.125mm);
+      break-after: page; overflow: hidden;
+    }
+    .folha:last-child { break-after: auto; }
+    .etiqueta {
+      display: flex; flex-direction: column; align-items: center; justify-content: center;
+      padding: 2mm 3mm; overflow: hidden; text-align: center;
+    }
+    .borda .etiqueta { outline: 0.2mm dashed #888; outline-offset: -0.1mm; }
+    .evento { font-size: 8pt; font-weight: 600; letter-spacing: .3pt; text-transform: uppercase; max-width: 100%; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .numero { font-size: 52pt; font-weight: 900; line-height: 1; letter-spacing: 1mm; font-variant-numeric: tabular-nums; }
+    .instrucao { font-size: 7pt; }
+
+    .barra { position: sticky; top: 0; padding: 12px 16px; background: #1d6b57; color: #fff; display: flex; gap: 12px; align-items: center; flex-wrap: wrap; }
+    .barra button { padding: 10px 18px; border: 0; border-radius: 8px; font: inherit; font-weight: 700; cursor: pointer; }
+    .barra p { margin: 0; font-size: 14px; flex: 1; min-width: 240px; }
+    @media screen {
+      body { background: #8a8a8a; }
+      .folha { background: #fff; margin: 12px auto; box-shadow: 0 2px 12px rgba(0,0,0,.3); }
+    }
+    @media print { .barra { display: none; } }
+  </style>
+</head>
+<body>
+  <div class="barra">
+    <button onclick="window.print()">Imprimir</button>
+    <p id="resumo">Carregando…</p>
+  </div>
+  <div id="folhas"></div>
+  <script type="module">
+    import { api, esc, codigo } from '/js/comum.js';
+    const q = new URLSearchParams(location.search);
+    const de = Number(q.get('de')) || 1;
+    const ate = Math.max(de, Number(q.get('ate')) || de);
+    const config = await api('GET', '/api/config');
+    const numeros = Array.from({ length: ate - de + 1 }, (_, i) => de + i);
+    const folhas = [];
+    for (let i = 0; i < numeros.length; i += 24) folhas.push(numeros.slice(i, i + 24));
+    const corpo = document.getElementById('folhas');
+    corpo.className = q.get('borda') === '0' ? '' : 'borda';
+    corpo.innerHTML = folhas.map((folha) => `<section class="folha">${folha.map((n) => `
+      <div class="etiqueta">
+        <div class="evento">${esc(config.nome_evento)}</div>
+        <div class="numero">${codigo(n)}</div>
+        <div class="instrucao">Diga este número ao vendedor</div>
+      </div>`).join('')}</section>`).join('');
+    document.getElementById('resumo').textContent =
+      `${numeros.length} etiquetas (${codigo(de)} a ${codigo(ate)}) em ${folhas.length} folha(s) A4. ` +
+      'Na janela de impressão use margens "Nenhuma" e escala 100%.';
+  </script>
+</body>
+</html>

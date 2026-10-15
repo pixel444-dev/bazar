@@ -1,0 +1,64 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Acesso ao sistema</title>
+  <link rel="icon" href="/icone.svg">
+  <style>
+    @page { size: A4; margin: 15mm; }
+    * { box-sizing: border-box; }
+    body { margin: 0; font-family: system-ui, "Segoe UI", Roboto, Arial, sans-serif; color: #000; background: #fff; }
+    main { max-width: 180mm; margin: 0 auto; padding: 16px; text-align: center; }
+    h1 { font-size: 26pt; margin: 0 0 4mm; }
+    .passos { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 10mm; margin-top: 8mm; }
+    .passo { border: 2px solid #000; border-radius: 6mm; padding: 6mm; }
+    .passo h2 { margin: 0 0 3mm; font-size: 16pt; }
+    .qr svg { width: 62mm; height: 62mm; }
+    .grande { font-size: 15pt; font-weight: 700; word-break: break-all; }
+    .dica { margin-top: 8mm; padding: 4mm; border: 1px dashed #000; text-align: left; font-size: 11pt; }
+    .outros { font-size: 10pt; color: #444; }
+    .barra { display: flex; justify-content: center; gap: 10px; padding: 12px; background: #1d6b57; }
+    .barra button { padding: 10px 18px; border: 0; border-radius: 8px; font: inherit; font-weight: 700; cursor: pointer; }
+    @media print { .barra { display: none; } }
+  </style>
+</head>
+<body>
+  <div class="barra"><button onclick="window.print()">Imprimir</button></div>
+  <main id="conteudo">Carregando…</main>
+  <script type="module">
+    import { api, esc } from '/js/comum.js';
+    let dados;
+    try {
+      dados = await api('GET', '/api/admin/acesso');
+    } catch (e) {
+      document.getElementById('conteudo').innerHTML = `<p>${esc(e.message)}</p><p><a href="/">Entrar como administrador</a></p>`;
+      throw e;
+    }
+    const [principal, ...outros] = dados.enderecos;
+    document.getElementById('conteudo').innerHTML = `
+      <h1>${esc(dados.nome_evento)}: sistema de vendas</h1>
+      <p>Para vendedores e caixas</p>
+      <div class="passos">
+        ${dados.wifi ? `
+        <div class="passo">
+          <h2>1. Conecte no Wi-Fi</h2>
+          <div class="qr">${dados.wifi.qr}</div>
+          <p class="grande">${esc(dados.wifi.nome)}</p>
+          ${dados.wifi.senha ? `<p>Senha: <strong>${esc(dados.wifi.senha)}</strong></p>` : ''}
+        </div>` : ''}
+        <div class="passo">
+          <h2>${dados.wifi ? '2. ' : ''}Abra o sistema</h2>
+          ${principal ? `<div class="qr">${principal.qr}</div><p class="grande">${esc(principal.url)}</p>`
+            : '<p><strong>O notebook central não está conectado a nenhuma rede.</strong><br>Conecte no Wi-Fi do roteador e recarregue esta página.</p>'}
+        </div>
+      </div>
+      ${outros.length ? `<p class="outros">Outros endereços deste notebook: ${outros.map((e) => esc(e.url)).join(' · ')}</p>` : ''}
+      <div class="dica">
+        <strong>Se o celular avisar "Wi-Fi sem internet":</strong> toque em <em>"Manter conexão"</em> ou <em>"Sim"</em>.
+        Se o sistema não abrir, desligue os <strong>dados móveis</strong> e tente de novo: alguns celulares
+        trocam sozinhos para o 4G quando a rede não tem internet.
+      </div>`;
+  </script>
+</body>
+</html>

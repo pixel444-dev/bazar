@@ -1,0 +1,9 @@
+node_modules/
+# Banco de dados, backups e fotos de comprovantes ficam fora do git
+data/
+*.db
+*.db-wal
+*.db-shm
+
+# Configuração local do editor
+.claude/

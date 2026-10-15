@@ -1,0 +1,69 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#1d6b57">
+  <title>Vender · Bazar</title>
+  <link rel="icon" href="/icone.svg">
+  <link rel="stylesheet" href="/css/estilo.css">
+  <script type="module" src="/js/vendedor.js"></script>
+</head>
+<body>
+  <header id="topo"></header>
+  <nav class="abas">
+    <button data-aba="vender">Vender</button>
+    <button data-aba="minhas">Minhas vendas</button>
+    <button data-aba="estoque">Estoque</button>
+  </nav>
+  <main>
+    <section data-painel="vender">
+      <div id="etapa-itens">
+        <form id="form-codigo" class="cartao" autocomplete="off">
+          <label for="codigo">Número da etiqueta do móvel</label>
+          <div class="linha-input">
+            <input id="codigo" class="input-codigo" inputmode="numeric" pattern="[0-9]*" placeholder="000" required>
+            <button class="botao primario">Reservar</button>
+          </div>
+          <p id="mensagem-codigo" class="mensagem" hidden></p>
+          <p class="dica">O móvel fica reservado no seu nome na hora. Nenhum outro vendedor consegue vender.</p>
+        </form>
+        <div id="carrinho"></div>
+      </div>
+
+      <form id="etapa-cliente" class="cartao" autocomplete="off" hidden>
+        <div class="linha-topo">
+          <h2>Dados de entrega</h2>
+          <span class="contador" id="contador-cliente"></span>
+        </div>
+        <p id="resumo-cliente" class="suave"></p>
+        <div class="campos"></div>
+        <button class="botao primario grande" type="submit">Finalizar venda</button>
+        <button class="botao secundario largo" type="button" id="voltar-itens" style="margin-top:8px">Voltar aos móveis</button>
+      </form>
+
+      <div id="etapa-pronto" hidden></div>
+    </section>
+
+    <section data-painel="minhas" hidden>
+      <div id="lista-minhas"></div>
+    </section>
+
+    <section data-painel="estoque" hidden>
+      <form id="form-consulta" class="cartao" autocomplete="off">
+        <label for="consulta">Consultar um número (sem reservar)</label>
+        <div class="linha-input">
+          <input id="consulta" class="input-codigo" inputmode="numeric" pattern="[0-9]*" placeholder="000" required>
+          <button class="botao secundario">Consultar</button>
+        </div>
+        <div id="resultado-consulta"></div>
+      </form>
+      <div class="cartao">
+        <h2>Disponíveis por tipo</h2>
+        <p class="dica">Toque num tipo para ver os números e preços.</p>
+        <div id="lista-estoque"></div>
+      </div>
+    </section>
+  </main>
+</body>
+</html>

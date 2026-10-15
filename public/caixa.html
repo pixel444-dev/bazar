@@ -1,0 +1,46 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#1d6b57">
+  <title>Caixa · Bazar</title>
+  <link rel="icon" href="/icone.svg">
+  <link rel="stylesheet" href="/css/estilo.css">
+  <script type="module" src="/js/caixa.js"></script>
+</head>
+<body>
+  <header id="topo"></header>
+  <nav class="abas largo">
+    <button data-aba="pedidos">Receber</button>
+    <button data-aba="fechamento">Fechamento do caixa</button>
+  </nav>
+  <main class="largo">
+    <section data-painel="pedidos" class="caixa-grade">
+      <aside class="cartao">
+        <form id="form-busca" autocomplete="off">
+          <label for="busca">Número do pedido, nome ou telefone</label>
+          <div class="linha-input">
+            <input id="busca" type="search" inputmode="search" placeholder="Ex: 47">
+            <button class="botao primario">Abrir</button>
+          </div>
+        </form>
+        <div class="filtros" id="filtros">
+          <button data-status="aguardando" class="ativo">Aguardando</button>
+          <button data-status="expirado">Expirados</button>
+          <button data-status="pago">Pagos</button>
+          <button data-status="cancelado">Cancelados</button>
+        </div>
+        <div id="lista-pedidos" class="lista-pedidos"></div>
+      </aside>
+      <section id="detalhe" class="cartao">
+        <p class="vazio">Digite o número que o cliente falar ou escolha um pedido na lista.</p>
+      </section>
+    </section>
+
+    <section data-painel="fechamento" hidden>
+      <div id="fechamento"></div>
+    </section>
+  </main>
+</body>
+</html>

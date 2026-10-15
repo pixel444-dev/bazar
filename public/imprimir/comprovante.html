@@ -1,0 +1,58 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Comprovante</title>
+  <style>
+    /* Impressora térmica de 58 mm (área útil ~48 mm) */
+    @page { size: 58mm auto; margin: 0; }
+    * { box-sizing: border-box; }
+    body { margin: 0; color: #000; background: #fff; font-family: Arial, Helvetica, sans-serif; font-size: 9pt; line-height: 1.3; }
+    .cupom { width: 58mm; padding: 2mm 4mm 6mm; }
+    h1 { font-size: 11pt; text-align: center; margin: 0 0 1mm; }
+    .centro { text-align: center; }
+    .pedido { font-size: 26pt; font-weight: 900; text-align: center; margin: 1mm 0; }
+    hr { border: 0; border-top: 1px dashed #000; margin: 2mm 0; }
+    .linha { display: flex; justify-content: space-between; gap: 2mm; }
+    .linha span:first-child { min-width: 0; overflow-wrap: anywhere; }
+    .linha span:last-child { white-space: nowrap; }
+    .total { font-size: 12pt; font-weight: 900; }
+    .pequeno { font-size: 7.5pt; }
+    b { font-weight: 900; }
+    @media screen { body { background: #ddd; } .cupom { background: #fff; margin: 12px auto; } }
+  </style>
+</head>
+<body>
+  <div class="cupom" id="cupom">Carregando…</div>
+  <script type="module">
+    import { api, esc, reais, codigo, dataHora, telefoneFmt, ROTULO_FORMA } from '/js/comum.js';
+    const q = new URLSearchParams(location.search);
+    const [p, config] = await Promise.all([api('GET', `/api/pedidos/${Number(q.get('pedido'))}`), api('GET', '/api/config')]);
+    document.getElementById('cupom').innerHTML = `
+      <h1>${esc(config.nome_evento)}</h1>
+      <div class="centro pequeno">Comprovante de compra</div>
+      <div class="pedido">#${p.id}</div>
+      <div class="centro pequeno">${dataHora(p.pago_em ?? p.finalizado_em)}${p.status !== 'pago' ? ' · NÃO PAGO' : ''}</div>
+      <hr>
+      ${p.itens.map((i) => `<div class="linha"><span><b>${codigo(i.codigo)}</b> ${esc(i.tipo_nome)}${i.descricao ? ` ${esc(i.descricao)}` : ''}</span><span>${reais(i.preco_centavos)}</span></div>`).join('')}
+      <hr>
+      <div class="linha total"><span>TOTAL</span><span>${reais(p.total_centavos)}</span></div>
+      ${p.pagamentos.map((x) => `<div class="linha"><span>${ROTULO_FORMA[x.forma]}</span><span>${reais(x.valor_centavos)}</span></div>`).join('')}
+      ${p.troco_centavos ? `<div class="linha"><span>Troco</span><span>${reais(p.troco_centavos)}</span></div>` : ''}
+      <hr>
+      <div><b>Entrega para:</b></div>
+      <div>${esc(p.cliente_nome)}</div>
+      <div>${esc(telefoneFmt(p.telefone))}</div>
+      <div>${esc(p.rua)}, ${esc(p.numero)}${p.complemento ? ` - ${esc(p.complemento)}` : ''}</div>
+      <div>${esc(p.bairro)} - ${esc(p.cidade_nome)}</div>
+      <hr>
+      <div class="pequeno">Vendedor: ${esc(p.vendedor_nome)}${p.caixa_nome ? ` · Caixa: ${esc(p.caixa_nome)}` : ''}</div>
+      <div class="pequeno centro" style="margin-top:2mm">Guarde este comprovante.<br>Vamos entrar em contato para combinar a entrega.</div>`;
+    if (q.get('auto') === '1') {
+      // pequena espera para o navegador terminar de desenhar antes de imprimir
+      setTimeout(() => window.print(), 150);
+    }
+  </script>
+</body>
+</html>

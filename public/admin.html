@@ -1,0 +1,185 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#1d6b57">
+  <title>Administração · Bazar</title>
+  <link rel="icon" href="/icone.svg">
+  <link rel="stylesheet" href="/css/estilo.css">
+  <script type="module" src="/js/admin.js"></script>
+</head>
+<body>
+  <header id="topo"></header>
+  <nav class="abas largo">
+    <button data-aba="painel">Painel</button>
+    <button data-aba="moveis">Móveis e etiquetas</button>
+    <button data-aba="entregas">Entregas</button>
+    <button data-aba="cadastros">Equipe e cidades</button>
+    <button data-aba="config">Configurações</button>
+  </nav>
+  <main class="largo">
+
+    <!-- Painel -->
+    <section data-painel="painel">
+      <div id="painel"></div>
+    </section>
+
+    <!-- Móveis -->
+    <section data-painel="moveis" hidden>
+      <div class="grade-cartoes">
+        <form id="form-rapido" class="cartao" autocomplete="off">
+          <h2>Cadastro rápido</h2>
+          <p class="dica">Digite o número da etiqueta, escolha o tipo e o preço. Ao salvar, já abre o próximo número.</p>
+          <div class="linha-input" style="margin-top:10px">
+            <input id="rapido-codigo" class="input-codigo" inputmode="numeric" pattern="[0-9]*" placeholder="000">
+            <button type="button" class="botao secundario" id="rapido-abrir">Abrir</button>
+          </div>
+          <div id="rapido-info" class="mensagem info" hidden></div>
+          <fieldset id="rapido-campos" disabled style="border:0;padding:0;margin:10px 0 0">
+            <label>Tipo<select name="tipo_id" class="seletor-tipo" required></select></label>
+            <label>Preço (R$)<input name="preco" inputmode="decimal" placeholder="0,00" required></label>
+            <label>Descrição (opcional)<input name="descricao" placeholder="Ex: casal, madeira escura, com gaveta"></label>
+            <button class="botao primario grande">Salvar e ir para o próximo</button>
+          </fieldset>
+        </form>
+
+        <div>
+          <form id="form-etiquetas" class="cartao" autocomplete="off">
+            <h2>Etiquetas</h2>
+            <p id="etiquetas-info" class="suave"></p>
+            <label>Criar mais etiquetas (quantidade)
+              <div class="linha-input"><input name="quantidade" type="number" min="1" max="2000" placeholder="Ex: 300" required><button class="botao primario">Criar</button></div>
+            </label>
+          </form>
+          <form id="form-imprimir-etiquetas" class="cartao" autocomplete="off">
+            <h2>Imprimir etiquetas</h2>
+            <div class="duas-colunas">
+              <label>Do número<input name="de" type="number" min="1" required></label>
+              <label>Até o número<input name="ate" type="number" min="1" required></label>
+            </div>
+            <label class="check"><input type="checkbox" name="borda" checked> Linha de recorte (papel comum)</label>
+            <button class="botao secundario largo">Abrir para imprimir (A4)</button>
+          </form>
+        </div>
+
+        <form id="form-lote" class="cartao" autocomplete="off">
+          <h2>Cadastro em lote</h2>
+          <p class="dica">Aplica o mesmo tipo e preço a uma faixa de números. Móveis reservados ou vendidos são ignorados.</p>
+          <div class="duas-colunas">
+            <label>Do número<input name="de" type="number" min="1" required></label>
+            <label>Até o número<input name="ate" type="number" min="1" required></label>
+          </div>
+          <label>Tipo<select name="tipo_id" class="seletor-tipo" required></select></label>
+          <label>Preço (R$)<input name="preco" inputmode="decimal" placeholder="0,00" required></label>
+          <button class="botao primario largo">Aplicar na faixa</button>
+        </form>
+      </div>
+
+      <div class="cartao" style="margin-top:12px">
+        <div class="linha-topo">
+          <h2>Todos os móveis</h2>
+          <div class="grupo-botoes">
+            <select id="filtro-status" aria-label="Filtrar por situação" style="width:auto;margin:0">
+              <option value="">Todas as situações</option>
+              <option value="sem_cadastro">Sem cadastro</option>
+              <option value="disponivel">Disponível</option>
+              <option value="reservado">Reservado</option>
+              <option value="vendido">Vendido</option>
+            </select>
+            <select id="filtro-tipo" class="seletor-tipo-filtro" aria-label="Filtrar por tipo" style="width:auto;margin:0"></select>
+          </div>
+        </div>
+        <p class="dica">Clique numa linha para editar no cadastro rápido.</p>
+        <div class="rolagem"><table class="tabela">
+          <thead><tr><th>Nº</th><th>Tipo</th><th>Descrição</th><th class="num">Preço</th><th>Situação</th><th>Pedido</th></tr></thead>
+          <tbody id="tabela-moveis"></tbody>
+        </table></div>
+      </div>
+    </section>
+
+    <!-- Entregas -->
+    <section data-painel="entregas" hidden>
+      <div class="cartao">
+        <div class="linha-topo">
+          <h2>Entregas</h2>
+          <div class="grupo-botoes">
+            <label class="check" style="margin:0"><input type="checkbox" id="mostrar-entregues"> Mostrar já entregues</label>
+            <a class="botao primario" href="/imprimir/romaneio.html" target="_blank">Imprimir romaneio (A4)</a>
+          </div>
+        </div>
+        <div id="lista-entregas"></div>
+      </div>
+    </section>
+
+    <!-- Equipe e cidades -->
+    <section data-painel="cadastros" hidden>
+      <div class="grade-cartoes">
+        <div class="cartao">
+          <h2>Equipe</h2>
+          <div id="lista-usuarios"></div>
+          <form id="form-usuario" autocomplete="off" style="margin-top:12px">
+            <h3>Adicionar pessoa</h3>
+            <label>Nome<input name="nome" required></label>
+            <div class="duas-colunas">
+              <label>Função
+                <select name="papel">
+                  <option value="vendedor">Vendedor</option>
+                  <option value="caixa">Caixa</option>
+                  <option value="admin">Administrador</option>
+                </select>
+              </label>
+              <label>PIN (4 a 6 números)<input name="pin" inputmode="numeric" pattern="[0-9]{4,6}" required></label>
+            </div>
+            <button class="botao primario largo">Adicionar</button>
+          </form>
+        </div>
+        <div class="cartao">
+          <h2>Cidades atendidas na entrega</h2>
+          <p class="dica">O vendedor só consegue escolher estas cidades.</p>
+          <div id="lista-cidades"></div>
+          <form id="form-cidade" class="linha-input" autocomplete="off" style="margin-top:12px">
+            <input name="nome" placeholder="Nome da cidade" required><button class="botao primario">Adicionar</button>
+          </form>
+        </div>
+        <div class="cartao">
+          <h2>Tipos de móvel</h2>
+          <div id="lista-tipos"></div>
+          <form id="form-tipo" class="linha-input" autocomplete="off" style="margin-top:12px">
+            <input name="nome" placeholder="Novo tipo" required><button class="botao primario">Adicionar</button>
+          </form>
+        </div>
+      </div>
+    </section>
+
+    <!-- Configurações -->
+    <section data-painel="config" hidden>
+      <div class="grade-cartoes">
+        <form id="form-config" class="cartao" autocomplete="off">
+          <h2>Configurações</h2>
+          <label>Nome do evento (aparece nas etiquetas e comprovantes)<input name="nome_evento" required></label>
+          <label>Tempo de reserva (minutos)<input name="reserva_minutos" type="number" min="1" max="240" required></label>
+          <label>Pasta extra de backup (pendrive)
+            <input name="backup_pasta" placeholder="Ex: E:\backup-bazar">
+          </label>
+          <p class="dica">Além da pasta "data\backups", uma cópia vai para esta pasta a cada poucos minutos.</p>
+          <h3 style="margin-top:16px">Wi-Fi do bazar (para o QR code de acesso)</h3>
+          <div class="duas-colunas">
+            <label>Nome da rede<input name="wifi_nome"></label>
+            <label>Senha<input name="wifi_senha"></label>
+          </div>
+          <button class="botao primario largo">Salvar</button>
+        </form>
+        <div class="cartao">
+          <h2>Acesso dos celulares</h2>
+          <p>Imprima e cole na entrada: um QR code conecta no Wi-Fi e outro abre o sistema.</p>
+          <a class="botao primario largo" href="/acesso.html" target="_blank">Abrir página de acesso</a>
+          <h2 style="margin-top:20px">Backup</h2>
+          <div id="info-backup" class="suave"></div>
+          <button class="botao secundario largo" id="fazer-backup" style="margin-top:8px">Fazer backup agora</button>
+        </div>
+      </div>
+    </section>
+  </main>
+</body>
+</html>

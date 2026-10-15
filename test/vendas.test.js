@@ -1,0 +1,222 @@
+import { test, before, after } from 'node:test';
+import assert from 'node:assert/strict';
+import fs from 'node:fs';
+import os from 'node:os';
+import path from 'node:path';
+import { criarApp } from '../src/app.js';
+
+let app;
+let base;
+let pasta;
+
+before(async () => {
+  pasta = fs.mkdtempSync(path.join(os.tmpdir(), 'bazar-teste-'));
+  app = criarApp({ pastaDados: pasta, pastaPublica: path.resolve('public'), timers: false });
+  await new Promise((resolve) => app.servidor.listen(0, '127.0.0.1', resolve));
+  base = `http://127.0.0.1:${app.servidor.address().port}`;
+});
+
+after(async () => {
+  await app.fechar();
+  fs.rmSync(pasta, { recursive: true, force: true });
+});
+
+function cliente() {
+  let cookie = '';
+  async function req(metodo, url, corpo) {
+    const headers = {};
+    if (corpo !== undefined) headers['Content-Type'] = 'application/json';
+    if (cookie) headers.Cookie = cookie;
+    const r = await fetch(base + url, { method: metodo, headers, body: corpo === undefined ? undefined : JSON.stringify(corpo) });
+    const setCookie = r.headers.get('set-cookie');
+    if (setCookie) cookie = setCookie.split(';')[0];
+    const json = (r.headers.get('content-type') ?? '').includes('json');
+    return { status: r.status, dados: json ? await r.json() : await r.text() };
+  }
+  async function login(nome, pin) {
+    const { dados } = await req('GET', '/api/login/usuarios');
+    const u = dados.usuarios.find((x) => x.nome === nome);
+    assert.ok(u, `usuário ${nome} existe`);
+    const r = await req('POST', '/api/login', { usuario_id: u.id, pin });
+    assert.equal(r.status, 200, JSON.stringify(r.dados));
+  }
+  return { req, login };
+}
+
+const ok = (r) => {
+  assert.equal(r.status, 200, JSON.stringify(r.dados));
+  return r.dados;
+};
+
+const dadosCliente = (cidadeId) => ({
+  cliente_nome: 'Maria Souza', telefone: '(19) 98765-4321', cidade_id: cidadeId,
+  bairro: 'Centro', rua: 'Rua das Flores', numero: '120', complemento: 'casa 2',
+});
+
+const admin = cliente();
+const ana = cliente();
+const beto = cliente();
+const carla = cliente();
+let cidadeId;
+
+test('preparação: admin cadastra cidades, etiquetas, móveis e equipe', async () => {
+  await admin.login('Admin', '1234');
+  cidadeId = ok(await admin.req('POST', '/api/admin/cidades', { nome: 'Campinas' })).id;
+  assert.equal((await admin.req('POST', '/api/admin/cidades', { nome: 'campinas' })).status, 409, 'cidade duplicada');
+
+  assert.deepEqual(ok(await admin.req('POST', '/api/admin/etiquetas', { quantidade: 6 })), { de: 1, ate: 6 });
+  const { tipos } = ok(await admin.req('GET', '/api/config'));
+  const cama = tipos.find((t) => t.nome === 'Cama').id;
+  const sofa = tipos.find((t) => t.nome === 'Sofá').id;
+
+  const lote = ok(await admin.req('POST', '/api/admin/moveis/lote', { de: 1, ate: 3, tipo_id: cama, preco_centavos: 15000 }));
+  assert.equal(lote.atualizados, 3);
+  const m4 = ok(await admin.req('PUT', '/api/admin/moveis/4', { tipo_id: sofa, preco_centavos: 30000, descricao: 'retrátil' }));
+  assert.equal(m4.status, 'disponivel');
+  ok(await admin.req('PUT', '/api/admin/moveis/2', { preco_centavos: 18000 }));
+
+  ok(await admin.req('POST', '/api/admin/usuarios', { nome: 'Ana', pin: '1111', papel: 'vendedor' }));
+  ok(await admin.req('POST', '/api/admin/usuarios', { nome: 'Beto', pin: '2222', papel: 'vendedor' }));
+  ok(await admin.req('POST', '/api/admin/usuarios', { nome: 'Carla', pin: '3333', papel: 'caixa' }));
+  assert.equal((await admin.req('POST', '/api/admin/usuarios', { nome: 'X', pin: '12', papel: 'vendedor' })).status, 400);
+
+  await ana.login('Ana', '1111');
+  await beto.login('Beto', '2222');
+  await carla.login('Carla', '3333');
+});
+
+test('PIN errado não entra', async () => {
+  const intruso = cliente();
+  const { dados } = await intruso.req('GET', '/api/login/usuarios');
+  const r = await intruso.req('POST', '/api/login', { usuario_id: dados.usuarios[0].id, pin: '0000' });
+  assert.equal(r.status, 400);
+  assert.equal((await intruso.req('GET', '/api/eu')).status, 401);
+});
+
+test('dois vendedores tentando o mesmo móvel ao mesmo tempo: só um consegue', async () => {
+  for (let rodada = 0; rodada < 20; rodada++) {
+    const [a, b] = await Promise.all([
+      ana.req('POST', '/api/rascunho/itens', { codigo: 1 }),
+      beto.req('POST', '/api/rascunho/itens', { codigo: 1 }),
+    ]);
+    assert.deepEqual([a.status, b.status].sort(), [200, 409]);
+    const perdedor = a.status === 409 ? a : b;
+    assert.match(perdedor.dados.erro, /já está reservado por (Ana|Beto)/);
+    // devolve para a próxima rodada
+    const vencedor = a.status === 200 ? { c: ana, p: a.dados } : { c: beto, p: b.dados };
+    ok(await vencedor.c.req('DELETE', `/api/pedidos/${vencedor.p.id}/itens/1`));
+  }
+});
+
+test('não reserva móvel sem cadastro nem inexistente', async () => {
+  const semCadastro = await ana.req('POST', '/api/rascunho/itens', { codigo: 5 });
+  assert.equal(semCadastro.status, 409);
+  assert.match(semCadastro.dados.erro, /não tem tipo e preço/);
+  assert.equal((await ana.req('POST', '/api/rascunho/itens', { codigo: 999 })).status, 404);
+});
+
+let pedidoAna;
+
+test('vendedor monta a venda, finaliza e o caixa recebe dividido', async () => {
+  ok(await ana.req('POST', '/api/rascunho/itens', { codigo: 1 }));
+  const r = ok(await ana.req('POST', '/api/rascunho/itens', { codigo: 4 }));
+  assert.equal(r.total_centavos, 45000);
+  assert.equal((await ana.req('POST', '/api/rascunho/itens', { codigo: 4 })).status, 409, 'mesmo item duas vezes');
+
+  const incompleto = await ana.req('POST', '/api/rascunho/finalizar', { cliente_nome: 'Maria' });
+  assert.equal(incompleto.status, 400);
+  assert.match(incompleto.dados.erro, /telefone/);
+
+  pedidoAna = ok(await ana.req('POST', '/api/rascunho/finalizar', dadosCliente(cidadeId)));
+  assert.equal(pedidoAna.status, 'aguardando');
+  assert.equal(pedidoAna.telefone, '19987654321');
+  assert.equal(ok(await ana.req('GET', '/api/rascunho')), null);
+
+  // vendedor não acessa a lista do caixa nem mexe no pedido de outro
+  assert.equal((await ana.req('GET', '/api/pedidos')).status, 403);
+  assert.equal((await beto.req('DELETE', `/api/pedidos/${pedidoAna.id}/itens/1`)).status, 403);
+  assert.equal((await beto.req('GET', `/api/pedidos/${pedidoAna.id}`)).status, 403);
+
+  const lista = ok(await carla.req('GET', '/api/pedidos?status=aguardando'));
+  assert.ok(lista.some((p) => p.id === pedidoAna.id));
+  assert.equal(ok(await carla.req('GET', `/api/pedidos?busca=${pedidoAna.id}`))[0].id, pedidoAna.id);
+
+  const errado = await carla.req('POST', `/api/pedidos/${pedidoAna.id}/pagar`, { pagamentos: [{ forma: 'dinheiro', valor_centavos: 10000 }] });
+  assert.equal(errado.status, 400);
+  assert.match(errado.dados.erro, /não bate/);
+
+  const pago = ok(await carla.req('POST', `/api/pedidos/${pedidoAna.id}/pagar`, {
+    pagamentos: [{ forma: 'dinheiro', valor_centavos: 15000 }, { forma: 'pix', valor_centavos: 30000 }],
+    troco_centavos: 5000,
+  }));
+  assert.equal(pago.status, 'pago');
+  assert.equal(pago.caixa_nome, 'Carla');
+
+  const m1 = ok(await beto.req('GET', '/api/moveis/1'));
+  assert.equal(m1.status, 'vendido');
+  const tentativa = await beto.req('POST', '/api/rascunho/itens', { codigo: 1 });
+  assert.equal(tentativa.status, 409);
+  assert.match(tentativa.dados.erro, /já foi vendido/);
+
+  assert.equal((await carla.req('POST', `/api/pedidos/${pedidoAna.id}/pagar`, { pagamentos: [{ forma: 'pix', valor_centavos: 45000 }] })).status, 409, 'não paga duas vezes');
+  assert.equal((await admin.req('PUT', '/api/admin/moveis/1', { preco_centavos: 100 })).status, 409, 'não muda preço de vendido');
+});
+
+test('reserva expirada libera o móvel e o caixa pode reativar se ainda estiver livre', async () => {
+  ok(await beto.req('POST', '/api/rascunho/itens', { codigo: 2 }));
+  ok(await beto.req('POST', '/api/rascunho/itens', { codigo: 3 }));
+  const p = ok(await beto.req('POST', '/api/rascunho/finalizar', dadosCliente(cidadeId)));
+
+  app.db.prepare('UPDATE pedidos SET expira_em = 0 WHERE id = ?').run(p.id);
+  assert.equal(ok(await carla.req('GET', `/api/pedidos/${p.id}`)).status, 'expirado');
+  assert.equal(ok(await ana.req('GET', '/api/moveis/2')).status, 'disponivel');
+
+  const pagarExpirado = await carla.req('POST', `/api/pedidos/${p.id}/pagar`, { pagamentos: [{ forma: 'pix', valor_centavos: 33000 }] });
+  assert.equal(pagarExpirado.status, 409);
+
+  // Ana pega o 2 enquanto isso; na reativação, só o 3 volta
+  ok(await ana.req('POST', '/api/rascunho/itens', { codigo: 2 }));
+  const reativado = ok(await carla.req('POST', `/api/pedidos/${p.id}/reativar`));
+  assert.deepEqual(reativado.perdidos, [2]);
+  assert.equal(reativado.pedido.status, 'aguardando');
+  assert.equal(reativado.pedido.total_centavos, 15000);
+
+  ok(await carla.req('POST', `/api/pedidos/${p.id}/pagar`, { pagamentos: [{ forma: 'cartao', valor_centavos: 15000 }] }));
+  ok(await ana.req('POST', '/api/rascunho/descartar'));
+  assert.equal(ok(await ana.req('GET', '/api/moveis/2')).status, 'disponivel');
+});
+
+test('relatórios: fechamento de caixa, romaneio e planilha', async () => {
+  const r = ok(await carla.req('GET', '/api/relatorios/resumo'));
+  assert.equal(r.formas.dinheiro, 15000);
+  assert.equal(r.formas.pix, 30000);
+  assert.equal(r.formas.cartao, 15000);
+  assert.equal(r.formas.total, 60000);
+  assert.equal(r.caixas[0].nome, 'Carla');
+  assert.equal(r.caixas[0].troco, 5000);
+  assert.equal(r.moveis.vendido, 3);
+
+  assert.equal((await carla.req('GET', '/api/relatorios/romaneio')).status, 403);
+  const romaneio = ok(await admin.req('GET', '/api/relatorios/romaneio'));
+  assert.equal(romaneio.length, 2);
+  ok(await admin.req('POST', `/api/pedidos/${romaneio[0].id}/entrega`, { entregue: true }));
+  assert.equal(ok(await admin.req('GET', '/api/relatorios/romaneio')).length, 1);
+
+  const csv = await admin.req('GET', '/api/relatorios/vendas.csv');
+  assert.equal(csv.status, 200);
+  assert.match(csv.dados, /Campinas/);
+  assert.match(csv.dados, /Dinheiro 150,00 \+ Pix 300,00/);
+});
+
+test('cancelar pedido pago devolve o móvel (só admin)', async () => {
+  assert.equal((await carla.req('POST', `/api/pedidos/${pedidoAna.id}/cancelar`)).status, 403);
+  ok(await admin.req('POST', `/api/pedidos/${pedidoAna.id}/cancelar`));
+  assert.equal(ok(await ana.req('GET', '/api/moveis/4')).status, 'disponivel');
+  const r = ok(await admin.req('GET', '/api/relatorios/resumo'));
+  assert.equal(r.formas.total, 15000, 'pagamentos do pedido cancelado saem do fechamento');
+});
+
+test('backup gera arquivo de banco', async () => {
+  const b = ok(await admin.req('POST', '/api/admin/backup'));
+  assert.ok(fs.existsSync(b.arquivo));
+});

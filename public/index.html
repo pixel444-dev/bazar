@@ -1,0 +1,28 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#1d6b57">
+  <title>Entrar · Bazar</title>
+  <link rel="icon" href="/icone.svg">
+  <link rel="stylesheet" href="/css/estilo.css">
+  <script type="module" src="/js/login.js"></script>
+</head>
+<body>
+  <main class="login">
+    <h1 id="nome-evento">Bazar</h1>
+    <section id="escolher">
+      <p class="suave">Toque no seu nome para entrar.</p>
+      <div id="usuarios"></div>
+    </section>
+    <form id="form-pin" class="cartao" hidden>
+      <p>Olá, <strong id="nome-escolhido"></strong>! Digite seu PIN:</p>
+      <input id="pin" class="pin" type="password" inputmode="numeric" pattern="[0-9]*" maxlength="6" autocomplete="off" required>
+      <p id="erro-pin" class="mensagem erro" hidden></p>
+      <button class="botao primario grande">Entrar</button>
+      <button type="button" id="voltar" class="botao perigo-texto largo">Não sou eu</button>
+    </form>
+  </main>
+</body>
+</html>

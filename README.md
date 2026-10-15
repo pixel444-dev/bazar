@@ -1,0 +1,68 @@
+# Sistema do Bazar de Móveis
+
+Sistema de vendas que funciona **sem internet**, só com a rede local de um roteador.
+Um notebook vira a central; vendedores usam o próprio celular pelo navegador e os caixas usam notebooks.
+
+O que ele resolve:
+
+- **Nenhum móvel é vendido duas vezes.** Quando o vendedor digita o número da etiqueta, o móvel fica
+  reservado no nome dele na hora. Se outro vendedor tentar, aparece "Já reservado por Ana (pedido #12)".
+- **Sem fichas de papel.** Nome, telefone e endereço de entrega ficam no sistema.
+- **Controle do caixa.** Cada pagamento é registrado como dinheiro, Pix ou cartão (pode dividir),
+  com cálculo de troco e foto opcional do comprovante Pix.
+- **Romaneio de entrega** em A4, agrupado por cidade e bairro, com a lista do que carregar no caminhão.
+
+## Como ligar
+
+1. Ligue o roteador e conecte o notebook central no Wi-Fi dele.
+2. Dê dois cliques em **`iniciar.bat`**. Uma janela preta abre mostrando os endereços. **Não feche essa janela.**
+3. Na primeira vez, o Windows pergunta se libera o Node.js no firewall: marque **Redes privadas** e permita.
+4. No notebook, abra `http://localhost:3000` e entre como **Admin**, PIN **1234**. Troque o PIN em *Equipe e cidades*.
+
+Para os celulares, abra *Configurações → Acesso dos celulares* e imprima a página com os QR codes
+(Wi-Fi e endereço do sistema). Cole na entrada do galpão.
+
+> Dica: no roteador, reserve um IP fixo para o notebook central (DHCP estático). Assim o endereço
+> impresso no QR code não muda de um dia para o outro.
+
+## Antes do bazar
+
+1. **Equipe e cidades:** cadastre vendedores, caixas (cada um com PIN) e as cidades atendidas na entrega.
+2. **Móveis e etiquetas:** crie as etiquetas (ex.: 300) e imprima em A4 (24 por folha). Cole nos móveis.
+3. **Cadastro rápido:** com as etiquetas coladas, ande pelo galpão com o celular, digite o número, escolha
+   o tipo e o preço. Ao salvar, ele já abre o próximo número com o mesmo tipo e preço preenchidos.
+   Para vários iguais, use o **cadastro em lote** (ex.: do 001 ao 018, Cama, R$ 150).
+4. Em *Configurações*, informe a pasta do pendrive para backup (ex.: `E:\backup-bazar`).
+
+## No dia
+
+- **Vendedor:** digita o número → *Reservar* → *Continuar* → dados do cliente → *Finalizar*.
+  Fala para o cliente: "vai no caixa e diz o número 47".
+- **Caixa:** digita 47 → escolhe a forma de pagamento → *Confirmar*. O comprovante sai na térmica de 58 mm.
+- A reserva vale **20 minutos** (configurável). Se o cliente demorar na fila e expirar, o caixa clica em
+  *Reativar*: o sistema reserva de novo o que ainda estiver livre.
+- **Fechamento:** aba *Fechamento do caixa* mostra dinheiro / Pix / cartão de cada caixa.
+
+Para imprimir o comprovante sem a janela de impressão aparecer toda vez, abra o Chrome do caixa com
+`--kiosk-printing` e deixe a térmica como impressora padrão.
+
+## Depois do bazar
+
+- *Entregas:* marque cada pedido entregue. *Imprimir romaneio* gera a folha A4 para o motorista.
+- *Painel → Planilha de vendas (Excel)* exporta tudo.
+
+## Segurança dos dados
+
+- O banco fica em `data\bazar.db`. A cada 3 minutos com mudanças é feito um backup em `data\backups`
+  e, se configurado, no pendrive (junto com as fotos dos comprovantes).
+- Se o notebook desligar, basta ligar de novo e rodar o `iniciar.bat`: nada se perde.
+- Para restaurar um backup: feche a central, copie o arquivo de backup por cima de `data\bazar.db`
+  e apague `bazar.db-wal` e `bazar.db-shm` se existirem.
+
+## Para quem for mexer no código
+
+- Node.js 22.13+ (usa o SQLite embutido `node:sqlite`). Única dependência: `qrcode`.
+- `npm start` liga a central; `npm test` roda os testes (inclui dois vendedores disputando o mesmo móvel).
+- `node server.js --porta 3100 --dados C:\outra\pasta` para testar sem mexer nos dados reais.
+- Código: `src/vendas.js` (reserva, pagamento, expiração), `src/catalogo.js` (móveis e cadastros),
+  `src/app.js` (rotas HTTP), `public/` (telas).

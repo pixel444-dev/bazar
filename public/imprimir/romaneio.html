@@ -1,0 +1,96 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Romaneio de entrega</title>
+  <link rel="icon" href="/icone.svg">
+  <style>
+    @page { size: A4; margin: 12mm 10mm; }
+    * { box-sizing: border-box; }
+    body { margin: 0; font-family: system-ui, "Segoe UI", Roboto, Arial, sans-serif; font-size: 10.5pt; color: #000; }
+    .pagina { max-width: 190mm; margin: 0 auto; }
+    h1 { font-size: 16pt; margin: 0; }
+    h2 { font-size: 13pt; margin: 6mm 0 2mm; padding-bottom: 1mm; border-bottom: 2px solid #000; break-after: avoid; }
+    .sub { color: #444; margin: 1mm 0 4mm; }
+    .carga { border: 1px solid #000; padding: 3mm; margin-bottom: 4mm; }
+    .carga table { width: 100%; border-collapse: collapse; }
+    .carga td { padding: 1mm 2mm; border-bottom: 1px solid #ccc; vertical-align: top; }
+    .carga td:first-child { font-weight: 700; white-space: nowrap; width: 1%; }
+    .pedido { display: grid; grid-template-columns: 8mm 1fr; gap: 3mm; padding: 3mm 0; border-bottom: 1px solid #999; break-inside: avoid; }
+    .caixinha { width: 6mm; height: 6mm; border: 1.5px solid #000; margin-top: 1mm; }
+    .topo-pedido { display: flex; justify-content: space-between; gap: 4mm; }
+    .num { font-size: 13pt; font-weight: 900; }
+    .itens { margin-top: 1mm; }
+    .itens b { font-variant-numeric: tabular-nums; }
+    .obs { font-style: italic; }
+    .assinatura { margin-top: 3mm; color: #444; font-size: 9pt; }
+    .barra { position: sticky; top: 0; padding: 12px 16px; background: #1d6b57; color: #fff; display: flex; gap: 12px; align-items: center; flex-wrap: wrap; font-size: 14px; }
+    .barra button { padding: 10px 18px; border: 0; border-radius: 8px; font: inherit; font-weight: 700; cursor: pointer; }
+    @media screen { body { background: #eee; } .pagina { background: #fff; padding: 12mm 10mm; margin: 12px auto; box-shadow: 0 2px 10px rgba(0,0,0,.2); } }
+    @media print { .barra { display: none; } }
+  </style>
+</head>
+<body>
+  <div class="barra">
+    <button onclick="window.print()">Imprimir</button>
+    <label><input type="checkbox" id="todos"> Incluir pedidos já entregues</label>
+  </div>
+  <div class="pagina" id="pagina">Carregando…</div>
+  <script type="module">
+    import { api, esc, codigo, dataHora, telefoneFmt } from '/js/comum.js';
+    const q = new URLSearchParams(location.search);
+    const todos = q.get('todos') === '1';
+    document.getElementById('todos').checked = todos;
+    document.getElementById('todos').addEventListener('change', (e) => {
+      location.search = e.target.checked ? '?todos=1' : '';
+    });
+
+    const [pedidos, config] = await Promise.all([
+      api('GET', `/api/relatorios/romaneio?pendentes=${todos ? 0 : 1}`),
+      api('GET', '/api/config'),
+    ]);
+
+    // Resumo do que colocar no caminhão
+    const carga = new Map();
+    for (const p of pedidos) for (const i of p.itens) {
+      const lista = carga.get(i.tipo_nome) ?? [];
+      lista.push(i.codigo);
+      carga.set(i.tipo_nome, lista);
+    }
+    const tiposOrdenados = [...carga].sort(([a], [b]) => a.localeCompare(b, 'pt-BR'));
+    const totalItens = tiposOrdenados.reduce((s, [, l]) => s + l.length, 0);
+
+    // Agrupa por cidade, mantendo a ordem por bairro e rua que vem da central
+    const cidades = new Map();
+    for (const p of pedidos) {
+      const c = p.cidade_nome ?? 'Sem cidade';
+      if (!cidades.has(c)) cidades.set(c, []);
+      cidades.get(c).push(p);
+    }
+
+    document.getElementById('pagina').innerHTML = `
+      <h1>Romaneio de entrega · ${esc(config.nome_evento)}</h1>
+      <p class="sub">Gerado em ${dataHora(Date.now())} · ${pedidos.length} entregas · ${totalItens} móveis${todos ? ' · inclui já entregues' : ''}</p>
+      ${pedidos.length ? `
+      <div class="carga">
+        <strong>Para carregar no caminhão</strong>
+        <table>${tiposOrdenados.map(([tipo, codigos]) => `<tr><td>${codigos.length}× ${esc(tipo)}</td><td>${codigos.sort((a, b) => a - b).map(codigo).join(', ')}</td></tr>`).join('')}</table>
+      </div>
+      ${[...cidades].map(([cidade, lista]) => `
+        <h2>${esc(cidade)} (${lista.length})</h2>
+        ${lista.map((p) => `
+          <div class="pedido">
+            <div class="caixinha"></div>
+            <div>
+              <div class="topo-pedido"><span><span class="num">#${p.id}</span> · <strong>${esc(p.cliente_nome)}</strong></span><strong>${esc(telefoneFmt(p.telefone))}</strong></div>
+              <div>${esc(p.rua)}, ${esc(p.numero)}${p.complemento ? ` · ${esc(p.complemento)}` : ''} · <strong>${esc(p.bairro)}</strong></div>
+              <div class="itens">${p.itens.map((i) => `<b>${codigo(i.codigo)}</b> ${esc(i.tipo_nome)}${i.descricao ? ` (${esc(i.descricao)})` : ''}`).join(' · ')}</div>
+              ${p.observacao ? `<div class="obs">Obs.: ${esc(p.observacao)}</div>` : ''}
+              ${p.entregue ? '<div><strong>JÁ ENTREGUE</strong></div>' : '<div class="assinatura">Recebido por: _______________________________________</div>'}
+            </div>
+          </div>`).join('')}`).join('')}`
+      : '<p>Nenhuma entrega pendente.</p>'}`;
+  </script>
+</body>
+</html>
