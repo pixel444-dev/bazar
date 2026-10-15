@@ -41,6 +41,9 @@ Para os celulares, abra *Configurações → Acesso dos celulares* e imprima a p
 - **Vendedor:** digita o número → *Reservar* → *Continuar* → dados do cliente → *Finalizar*.
   Fala para o cliente: "vai no caixa e diz o número 47".
 - **Caixa:** digita 47 → escolhe a forma de pagamento → *Confirmar*. O comprovante sai na térmica de 58 mm.
+- **Ranking:** na aba *Ranking* do celular, cada vendedor vê a classificação ao vivo (valor vendido e móveis),
+  em que lugar está e quanto falta para alcançar o próximo. Só conta venda já paga no caixa; se o vendedor
+  subir de posição, aparece um aviso na tela mesmo que ele esteja em outra aba.
 - A reserva vale **20 minutos** (configurável). Se o cliente demorar na fila e expirar, o caixa clica em
   *Reativar*: o sistema reserva de novo o que ainda estiver livre.
 - **Pagamento na entrega:** o cliente paga ao entregador quando recebe o móvel. O caixa lança o valor no

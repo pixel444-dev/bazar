@@ -15,6 +15,7 @@
     <button data-aba="vender">Vender</button>
     <button data-aba="minhas">Minhas vendas</button>
     <button data-aba="estoque">Estoque</button>
+    <button data-aba="ranking">Ranking</button>
   </nav>
   <main>
     <section data-painel="vender">
@@ -62,6 +63,18 @@
         <h2>Disponíveis por tipo</h2>
         <p class="dica">Toque num tipo para ver os números e preços.</p>
         <div id="lista-estoque"></div>
+      </div>
+    </section>
+
+    <section data-painel="ranking" hidden>
+      <div id="minha-posicao"></div>
+      <div class="cartao">
+        <div class="linha-topo">
+          <h2>Ranking dos vendedores</h2>
+          <span class="ao-vivo">ao vivo</span>
+        </div>
+        <ol id="lista-ranking" class="ranking"></ol>
+        <p class="dica">Conta o valor das vendas já pagas no caixa. Atualiza sozinho a cada venda.</p>
       </div>
     </section>
   </main>

@@ -94,6 +94,26 @@ export function resumo(db) {
   };
 }
 
+// Ranking que os vendedores acompanham no celular: só conta venda paga no caixa.
+// Entra todo vendedor ativo (mesmo sem venda) e quem mais tiver vendido (caixa ou admin que vendeu).
+// Empate no valor divide a posição: 1º, 1º, 3º.
+export function ranking(db) {
+  const linhas = db.prepare(`
+    SELECT u.id, u.nome,
+           COUNT(DISTINCT p.id) AS pedidos, COUNT(i.movel_codigo) AS itens, COALESCE(SUM(i.preco_centavos), 0) AS total
+    FROM usuarios u
+    LEFT JOIN pedidos p ON p.vendedor_id = u.id AND p.status = 'pago'
+    LEFT JOIN itens i ON i.pedido_id = p.id
+    GROUP BY u.id
+    HAVING (u.papel = 'vendedor' AND u.ativo = 1) OR total > 0`).all()
+    .sort((a, b) => b.total - a.total || b.itens - a.itens || porNome(a, b));
+  let posicao = 0;
+  return linhas.map((l, i) => {
+    if (i === 0 || l.total !== linhas[i - 1].total) posicao = i + 1;
+    return { ...l, posicao };
+  });
+}
+
 export function romaneio(db, vendas, { pendentes = true } = {}) {
   const ids = db.prepare(`
     SELECT p.id FROM pedidos p LEFT JOIN cidades ci ON ci.id = p.cidade_id

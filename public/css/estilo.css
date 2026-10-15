@@ -70,6 +70,11 @@ body.desconectado::after {
   background: var(--cartao); color: var(--suave); font: inherit; font-weight: 700; cursor: pointer;
 }
 .abas button.ativa { background: var(--primaria); border-color: var(--primaria); color: #fff; }
+/* No celular as abas do vendedor dividem a largura em partes iguais, para nenhuma ficar escondida. */
+@media (max-width: 520px) {
+  .abas:not(.largo) { gap: 4px; }
+  .abas:not(.largo) button { flex: 1 1 0; min-width: 0; padding: 8px 4px; font-size: .88rem; line-height: 1.15; }
+}
 
 /* ---------- Cartões e blocos ---------- */
 .cartao {
@@ -253,6 +258,28 @@ input[type=checkbox] { display: inline-block; width: 20px; height: 20px; margin:
   background: #fff; font: inherit; font-size: .9rem; cursor: pointer;
 }
 .chip b { color: var(--primaria); }
+
+/* ---------- Ranking ---------- */
+.ao-vivo { display: inline-flex; align-items: center; gap: 6px; font-size: .78rem; font-weight: 700; color: var(--ok); text-transform: uppercase; letter-spacing: .05em; }
+.ao-vivo::before { content: ""; width: 8px; height: 8px; border-radius: 50%; background: var(--ok); animation: piscar 1.6s ease-in-out infinite; }
+body.desconectado .ao-vivo { color: var(--suave); }
+body.desconectado .ao-vivo::before { background: var(--suave); animation: none; }
+@keyframes piscar { 50% { opacity: .25; } }
+.minha-posicao { border: 2px solid var(--primaria); }
+.minha-posicao.lider { background: var(--alerta-fundo); border-color: #d9a400; }
+.minha-posicao .lugar { font-size: 1.25rem; font-weight: 800; }
+.minha-posicao .linha-topo strong { font-size: 1.25rem; font-variant-numeric: tabular-nums; }
+.ranking { list-style: none; margin: 0; padding: 0; }
+.ranking li { display: flex; align-items: center; gap: 12px; padding: 10px 8px; border-bottom: 1px solid var(--borda); }
+.ranking li.eu { background: var(--primaria-clara); border-radius: 8px; border-bottom-color: transparent; }
+.ranking li.subiu { animation: subiu 2.4s ease-out; }
+@keyframes subiu { from { background: var(--ok-fundo); box-shadow: inset 4px 0 0 var(--ok); } }
+.ranking .posicao { flex: none; width: 2.2rem; text-align: center; font-size: 1.35rem; font-weight: 800; color: var(--suave); font-variant-numeric: tabular-nums; }
+.ranking .nome { flex: 1; min-width: 0; font-weight: 700; }
+.ranking .nome small { font-weight: 400; }
+.ranking .nome > small:last-child { display: block; }
+.ranking .barra-progresso { display: block; height: 6px; margin: 4px 0 2px; }
+.ranking strong { font-variant-numeric: tabular-nums; white-space: nowrap; }
 
 /* ---------- Entregas ---------- */
 .grupo-cidade { margin-top: 16px; }

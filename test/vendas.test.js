@@ -221,6 +221,16 @@ test('relatórios: fechamento de caixa, romaneio e planilha', async () => {
   assert.match(csv.dados, /Dinheiro 150,00 \+ Pix 300,00/);
 });
 
+test('ranking dos vendedores: só venda paga, todo vendedor aparece, caixa sem venda não', async () => {
+  const lista = ok(await beto.req('GET', '/api/ranking'));
+  assert.deepEqual(lista.map((v) => v.nome).sort(), ['Ana', 'Beto']);
+  assert.equal(lista.reduce((s, v) => s + v.total, 0), 60000);
+  assert.deepEqual(lista.map((v) => v.posicao), [1, 2]);
+  assert.ok(lista[0].total > lista[1].total);
+  const ana = lista.find((v) => v.nome === 'Ana');
+  assert.ok(ana.pedidos >= 1 && ana.itens >= 2);
+});
+
 test('cancelar pedido pago devolve o móvel (só admin)', async () => {
   assert.equal((await carla.req('POST', `/api/pedidos/${pedidoAna.id}/cancelar`)).status, 403);
   ok(await admin.req('POST', `/api/pedidos/${pedidoAna.id}/cancelar`));

@@ -128,6 +128,7 @@ export function criarApp({ pastaDados, pastaPublica, timers = true }) {
   rota('POST', '/api/rascunho/finalizar', TODOS, ({ usuario, corpo }) => vendas.finalizar(usuario, corpo));
   rota('POST', '/api/rascunho/descartar', TODOS, ({ usuario }) => vendas.descartar(usuario));
   rota('GET', '/api/meus-pedidos', TODOS, ({ usuario }) => vendas.listarPedidos({ vendedor_id: usuario.id, limite: 100 }));
+  rota('GET', '/api/ranking', TODOS, () => relatorios.ranking(db));
 
   // Pedidos
   rota('GET', '/api/pedidos', CAIXA, ({ query }) => vendas.listarPedidos(query));

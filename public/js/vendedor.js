@@ -3,7 +3,7 @@ import {
   seloStatus, seloMovel, descricaoMovel, atualizarContadores,
 } from './comum.js';
 
-const { config } = await iniciarPagina({ titulo: 'Vender' });
+const { usuario, config } = await iniciarPagina({ titulo: 'Vender' });
 const $ = (s) => document.querySelector(s);
 
 let rascunho = null;
@@ -249,6 +249,69 @@ $('#form-consulta').addEventListener('submit', async (e) => {
   }
 });
 
+// ---------- Ranking ----------
+
+const MEDALHA = { 1: '🥇', 2: '🥈', 3: '🥉' };
+let posicoesAntes = null; // id → posição no último ranking recebido
+
+const plural = (n, um, varios) => `${n} ${n === 1 ? um : varios}`;
+
+function cartaoMinhaPosicao(lista, eu) {
+  if (!eu) return '';
+  if (!eu.total) {
+    return `<div class="cartao minha-posicao"><p><strong>Você ainda não tem venda paga.</strong></p>
+      <p class="suave">A primeira venda paga no caixa já coloca você no ranking.</p></div>`;
+  }
+  const lugar = `${eu.posicao}º lugar`;
+  const empatados = lista.filter((v) => v.id !== eu.id && v.total === eu.total);
+  let detalhe;
+  if (empatados.length) {
+    detalhe = `Empatado com ${empatados.map((v) => esc(v.nome)).join(', ')}. Mais uma venda e você passa!`;
+  } else if (eu.posicao === 1) {
+    const segundo = lista.find((v) => v.total < eu.total);
+    detalhe = segundo ? `${reais(eu.total - segundo.total)} à frente de ${esc(segundo.nome)}.` : 'Ninguém mais vendeu ainda.';
+  } else {
+    const frente = lista.findLast((v) => v.total > eu.total);
+    detalhe = `Faltam <strong>${reais(frente.total - eu.total)}</strong> para alcançar ${esc(frente.nome)} (${frente.posicao}º).`;
+  }
+  return `<div class="cartao minha-posicao ${eu.posicao === 1 ? 'lider' : ''}">
+    <div class="linha-topo">
+      <span class="lugar">${MEDALHA[eu.posicao] ?? ''} Você está em ${lugar}</span>
+      <strong>${reais(eu.total)}</strong>
+    </div>
+    <p>${detalhe}</p>
+  </div>`;
+}
+
+function desenharRanking(lista, eu) {
+  $('#minha-posicao').innerHTML = cartaoMinhaPosicao(lista, eu);
+  const maior = lista[0]?.total || 1;
+  $('#lista-ranking').innerHTML = lista.length
+    ? lista.map((v) => {
+      const subiu = posicoesAntes?.has(v.id) && v.posicao < posicoesAntes.get(v.id);
+      return `
+      <li class="${v.id === eu?.id ? 'eu' : ''} ${subiu ? 'subiu' : ''}">
+        <span class="posicao">${v.total ? MEDALHA[v.posicao] ?? `${v.posicao}º` : '–'}</span>
+        <span class="nome">
+          ${esc(v.nome)}${v.id === eu?.id ? ' <small>(você)</small>' : ''}
+          <span class="barra-progresso"><span style="width:${(v.total / maior) * 100}%"></span></span>
+          <small>${plural(v.itens, 'móvel', 'móveis')} · ${plural(v.pedidos, 'venda', 'vendas')}</small>
+        </span>
+        <strong>${reais(v.total)}</strong>
+      </li>`;
+    }).join('')
+    : '<p class="vazio">Nenhum vendedor cadastrado.</p>';
+}
+
+async function carregarRanking() {
+  const lista = await api('GET', '/api/ranking');
+  const eu = lista.find((v) => v.id === usuario.id);
+  const antes = posicoesAntes?.get(usuario.id);
+  if (eu?.total && antes && eu.posicao < antes) aviso(`🎉 Você subiu para ${eu.posicao}º lugar no ranking!`, 'ok', 6000);
+  if (aba === 'ranking') desenharRanking(lista, eu);
+  posicoesAntes = new Map(lista.map((v) => [v.id, v.posicao]));
+}
+
 // ---------- Atualização ----------
 
 async function atualizar() {
@@ -256,6 +319,8 @@ async function atualizar() {
     if (etapa !== 'pronto' || aba !== 'vender') await carregarRascunho();
     if (aba === 'minhas') await carregarMinhas();
     if (aba === 'estoque') await carregarEstoque();
+    // Sempre, para avisar quando o vendedor sobe de posição mesmo fora da aba.
+    await carregarRanking();
   } catch (erro) {
     if (erro.status !== 401) aviso(erro.message, 'erro');
   }
