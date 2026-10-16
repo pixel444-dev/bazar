@@ -5,6 +5,9 @@ import { hashPin } from './seguranca.js';
 const PAPEIS = ['vendedor', 'caixa', 'admin'];
 const CHAVES_CONFIG = ['nome_evento', 'reserva_minutos', 'backup_pasta', 'wifi_nome', 'wifi_senha'];
 const MAX_FAIXA = 2000;
+// Cinco dígitos cabem na etiqueta. Também impede números tão grandes que `codigo++` deixa
+// de mudar o valor (acima de 2^53), o que prenderia o cadastro em lote num laço sem fim.
+const MAX_CODIGO = 99_999;
 
 const porNome = (a, b) => a.nome.localeCompare(b.nome, 'pt-BR');
 
@@ -48,6 +51,9 @@ export function criarCatalogo(db, aoMudar = () => {}) {
     const qtd = Number(quantidade);
     if (!Number.isInteger(qtd) || qtd < 1 || qtd > MAX_FAIXA) throw new ErroHttp(400, `Quantidade inválida (de 1 a ${MAX_FAIXA}).`);
     const ultimo = db.prepare('SELECT COALESCE(MAX(codigo), 0) AS m FROM moveis').get().m;
+    if (ultimo + qtd > MAX_CODIGO) {
+      throw new ErroHttp(400, `As etiquetas vão só até ${MAX_CODIGO}. Dá para criar mais ${Math.max(0, MAX_CODIGO - ultimo)}.`);
+    }
     transacao(db, () => {
       const inserir = db.prepare('INSERT INTO moveis (codigo, atualizado_em) VALUES (?, ?)');
       for (let c = ultimo + 1; c <= ultimo + qtd; c++) inserir.run(c, Date.now());
@@ -82,7 +88,9 @@ export function criarCatalogo(db, aoMudar = () => {}) {
   function cadastrarLote(dados) {
     const de = Number(dados.de);
     const ate = Number(dados.ate);
-    if (!Number.isInteger(de) || !Number.isInteger(ate) || de < 1 || ate < de) throw new ErroHttp(400, 'Faixa de números inválida.');
+    if (!Number.isInteger(de) || !Number.isInteger(ate) || de < 1 || ate < de || ate > MAX_CODIGO) {
+      throw new ErroHttp(400, 'Faixa de números inválida.');
+    }
     if (ate - de + 1 > MAX_FAIXA) throw new ErroHttp(400, 'Faixa grande demais.');
     const tipoId = exigirTipo(Number(dados.tipo_id));
     const precoNovo = preco(dados.preco_centavos);

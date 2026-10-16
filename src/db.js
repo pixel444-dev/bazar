@@ -135,6 +135,9 @@ export const PIN_ADMIN_INICIAL = '1234';
 export function abrirBanco(arquivo) {
   if (arquivo !== ':memory:') fs.mkdirSync(path.dirname(arquivo), { recursive: true });
   const db = new DatabaseSync(arquivo);
+  // Se outro programa (antivírus, cópia do arquivo) segurar o banco por um instante, espera
+  // até 5 s em vez de falhar na hora com "database is locked".
+  db.exec('PRAGMA busy_timeout = 5000');
   db.exec('PRAGMA journal_mode = WAL');
   db.exec('PRAGMA synchronous = FULL');
   db.exec('PRAGMA foreign_keys = ON');
@@ -178,13 +181,22 @@ function popular(db) {
 // O node:sqlite é síncrono: tudo o que roda dentro de `fn` acontece sem nenhuma outra
 // requisição no meio, e o BEGIN IMMEDIATE garante que ninguém mais grava no arquivo.
 export function transacao(db, fn) {
-  db.exec('BEGIN IMMEDIATE');
+  try {
+    db.exec('BEGIN IMMEDIATE');
+  } catch (e) {
+    // Uma transação que ficou aberta por erro travaria todas as próximas. Como tudo é
+    // síncrono, aqui nunca há uma legítima em andamento: desfaz a que sobrou e começa de novo.
+    if (!String(e.message).includes('within a transaction')) throw e;
+    db.exec('ROLLBACK');
+    db.exec('BEGIN IMMEDIATE');
+  }
   try {
     const resultado = fn();
     db.exec('COMMIT');
     return resultado;
   } catch (e) {
-    db.exec('ROLLBACK');
+    // Em erros de disco o SQLite já desfaz sozinho e o ROLLBACK falharia, escondendo o erro real.
+    try { db.exec('ROLLBACK'); } catch { /* já desfeita */ }
     throw e;
   }
 }

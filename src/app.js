@@ -39,12 +39,18 @@ export function criarApp({ pastaDados, pastaPublica, timers = true }) {
   const ouvintes = new Set();
   let avisoPendente = null;
   let mudouDesdeBackup = false;
+  function avisarTodos(linha) {
+    for (const res of ouvintes) {
+      if (res.writableEnded || res.destroyed) ouvintes.delete(res);
+      else res.write(linha);
+    }
+  }
   function aoMudar() {
     mudouDesdeBackup = true;
     if (avisoPendente) return;
     avisoPendente = setTimeout(() => {
       avisoPendente = null;
-      for (const res of ouvintes) res.write('data: mudou\n\n');
+      avisarTodos('data: mudou\n\n');
     }, 150);
   }
 
@@ -66,9 +72,21 @@ export function criarApp({ pastaDados, pastaPublica, timers = true }) {
                           ORDER BY CASE papel WHEN 'vendedor' THEN 1 WHEN 'caixa' THEN 2 ELSE 3 END, nome`).all(),
   }));
 
-  rota('POST', '/api/login', null, ({ corpo, res }) => {
+  // A cada 5 PINs errados do mesmo aparelho, espera 30 s. Sem isso dá para testar os 10 mil
+  // PINs de 4 dígitos em minutos, e cada tentativa ocupa a central (o scrypt é lento de propósito).
+  const errosDeLogin = new Map();
+  rota('POST', '/api/login', null, ({ req, corpo, res }) => {
+    const ip = req.socket.remoteAddress ?? '';
+    const erros = errosDeLogin.get(ip);
+    const espera = Math.ceil(((erros?.bloqueadoAte ?? 0) - Date.now()) / 1000);
+    if (espera > 0) throw new ErroHttp(429, `Muitos PINs errados. Espere ${espera} segundos e tente de novo.`);
     const u = db.prepare('SELECT * FROM usuarios WHERE id = ? AND ativo = 1').get(Number(corpo.usuario_id));
-    if (!u || !conferePin(corpo.pin, u.pin)) throw new ErroHttp(400, 'PIN incorreto.');
+    if (!u || !conferePin(corpo.pin, u.pin)) {
+      const n = (erros?.n ?? 0) + 1;
+      errosDeLogin.set(ip, { n, bloqueadoAte: n % 5 === 0 ? Date.now() + 30_000 : 0 });
+      throw new ErroHttp(400, 'PIN incorreto.');
+    }
+    errosDeLogin.delete(ip);
     const token = novoToken();
     db.prepare('INSERT INTO sessoes (token, usuario_id, criado_em) VALUES (?, ?, ?)').run(token, u.id, Date.now());
     res.setHeader('Set-Cookie', `sid=${token}; HttpOnly; Path=/; SameSite=Lax; Max-Age=${DURACAO_SESSAO_MS / 1000}`);
@@ -103,6 +121,7 @@ export function criarApp({ pastaDados, pastaPublica, timers = true }) {
     res.write('retry: 2000\n\n');
     ouvintes.add(res);
     res.on('close', () => ouvintes.delete(res));
+    res.on('error', () => ouvintes.delete(res));
     return SEM_RESPOSTA;
   });
 
@@ -157,8 +176,15 @@ export function criarApp({ pastaDados, pastaPublica, timers = true }) {
     const c = db.prepare('SELECT arquivo FROM comprovantes WHERE id = ?').get(Number(params.id));
     if (!c) throw new ErroHttp(404, 'Comprovante não encontrado.');
     const tipo = Object.entries(EXTENSAO_IMAGEM).find(([, ext]) => c.arquivo.endsWith(ext))?.[0] ?? 'application/octet-stream';
+    // Lê antes de mandar o cabeçalho: com o cabeçalho já enviado, um erro deixaria o navegador esperando para sempre.
+    let foto;
+    try {
+      foto = fs.readFileSync(path.join(pastaComprovantes, path.basename(c.arquivo)));
+    } catch {
+      throw new ErroHttp(404, 'A foto desse comprovante não está mais na pasta de comprovantes.');
+    }
     res.writeHead(200, { 'Content-Type': tipo, 'Cache-Control': 'private, max-age=86400' });
-    res.end(fs.readFileSync(path.join(pastaComprovantes, path.basename(c.arquivo))));
+    res.end(foto);
     return SEM_RESPOSTA;
   });
 
@@ -232,21 +258,29 @@ export function criarApp({ pastaDados, pastaPublica, timers = true }) {
     return new Promise((resolve, reject) => {
       const partes = [];
       let tamanho = 0;
+      let grandeDemais = false;
       req.on('data', (parte) => {
+        if (grandeDemais) return;
         tamanho += parte.length;
         if (tamanho > LIMITE_CORPO) {
+          // Continua recebendo (e descartando) para o celular conseguir ler a resposta 413;
+          // derrubar a conexão aparecia para ele como "Sem conexão com a central".
+          grandeDemais = true;
+          partes.length = 0;
           reject(new ErroHttp(413, 'Arquivo grande demais.'));
-          req.destroy();
           return;
         }
         partes.push(parte);
       });
       req.on('end', () => {
+        if (grandeDemais) return;
         const buffer = Buffer.concat(partes);
         const tipo = (req.headers['content-type'] ?? '').split(';')[0].trim();
         if (tipo === 'application/json') {
           try {
-            resolve(buffer.length ? JSON.parse(buffer.toString('utf8')) : {});
+            const dados = buffer.length ? JSON.parse(buffer.toString('utf8')) : {};
+            // As rotas leem corpo.x direto: null, número ou lista viram objeto vazio.
+            resolve(dados && typeof dados === 'object' && !Array.isArray(dados) ? dados : {});
           } catch {
             reject(new ErroHttp(400, 'JSON inválido.'));
           }
@@ -268,8 +302,14 @@ export function criarApp({ pastaDados, pastaPublica, timers = true }) {
 
   function servirEstatico(caminho, res) {
     if (caminho === '/') caminho = '/index.html';
-    const arquivo = path.normalize(path.join(pastaPublica, decodeURIComponent(caminho)));
-    if (!arquivo.startsWith(pastaPublica + path.sep)) throw new ErroHttp(404, 'Não encontrado.');
+    let decodificado;
+    try {
+      decodificado = decodeURIComponent(caminho);
+    } catch {
+      throw new ErroHttp(400, 'Endereço inválido.');
+    }
+    const arquivo = path.normalize(path.join(pastaPublica, decodificado));
+    if (!arquivo.startsWith(pastaPublica + path.sep) || arquivo.includes('\0')) throw new ErroHttp(404, 'Não encontrado.');
     fs.readFile(arquivo, (erro, dados) => {
       if (erro) {
         res.writeHead(404, { 'Content-Type': 'text/plain; charset=utf-8' });
@@ -312,24 +352,47 @@ export function criarApp({ pastaDados, pastaPublica, timers = true }) {
     }
   }
 
-  const servidor = http.createServer(tratar);
+  const servidor = http.createServer((req, res) => {
+    // Última proteção: um erro dentro do próprio tratamento de erro não pode derrubar a central.
+    tratar(req, res).catch((e) => {
+      console.error(e);
+      if (!res.headersSent) res.writeHead(500);
+      res.end();
+    });
+  });
 
   // ---- Rotinas periódicas ----
+  // Um erro dentro de um setInterval derruba o processo inteiro; aqui ele só é registrado
+  // e a rotina tenta de novo na próxima volta.
+  function semCair(nome, fn) {
+    return () => {
+      try {
+        fn();
+      } catch (e) {
+        console.error(`[${nome}] falhou: ${e.message}`);
+      }
+    };
+  }
   const intervalos = [];
+  let ultimoErroBackup = '';
   function fazerBackupSeMudou() {
     if (!mudouDesdeBackup) return;
     mudouDesdeBackup = false;
+    let erro;
     try {
-      const r = backup.fazer();
-      if (r.erro_extra) console.warn(`[backup] ${r.erro_extra}`);
+      erro = backup.fazer().erro_extra ?? '';
     } catch (e) {
-      console.error('[backup] falhou:', e.message);
+      erro = `falhou: ${e.message}`;
     }
+    // Pendrive fora fica falhando a cada 3 min: avisa só quando o problema muda.
+    // (O painel do admin mostra o erro do último backup.)
+    if (erro && erro !== ultimoErroBackup) console.warn(`[backup] ${erro}`);
+    ultimoErroBackup = erro;
   }
   if (timers) {
-    intervalos.push(setInterval(() => vendas.expirarVencidos(), 15_000));
-    intervalos.push(setInterval(() => { for (const res of ouvintes) res.write(': ping\n\n'); }, 20_000));
-    intervalos.push(setInterval(fazerBackupSeMudou, 3 * 60_000));
+    intervalos.push(setInterval(semCair('reservas', () => vendas.expirarVencidos()), 15_000));
+    intervalos.push(setInterval(semCair('avisos', () => avisarTodos(': ping\n\n')), 20_000));
+    intervalos.push(setInterval(semCair('backup', fazerBackupSeMudou), 3 * 60_000));
   }
 
   async function fechar({ comBackup = false } = {}) {

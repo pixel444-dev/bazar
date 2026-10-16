@@ -1,10 +1,24 @@
+import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { criarApp } from './src/app.js';
 import { enderecosLocais } from './src/rede.js';
-import { PIN_ADMIN_INICIAL } from './src/db.js';
 
 const raiz = path.dirname(fileURLToPath(import.meta.url));
+
+// Código de saída para problemas que ligar de novo não resolve (porta ocupada, Node antigo,
+// banco que não abre): o iniciar.bat só religa a central sozinho quando o código é 1.
+const SAIDA_SEM_RELIGAR = 2;
+
+// O banco usa o node:sqlite, que não existe em versões antigas do Node. Confere antes de
+// carregar o resto, senão aparece só um erro técnico.
+const [maior, menor] = process.versions.node.split('.').map(Number);
+if (maior < 22 || (maior === 22 && menor < 13)) {
+  console.error(`\nEste sistema precisa do Node.js 22.13 ou mais novo, e este computador tem o ${process.version}.`);
+  console.error('Instale a versão LTS de https://nodejs.org e abra de novo.\n');
+  process.exit(SAIDA_SEM_RELIGAR);
+}
+const { criarApp } = await import('./src/app.js');
+const { PIN_ADMIN_INICIAL } = await import('./src/db.js');
 
 // Uso: node server.js [--porta 3000] [--dados pasta]
 function argumento(nome, padrao) {
@@ -14,7 +28,33 @@ function argumento(nome, padrao) {
 
 const porta = Number(argumento('porta', process.env.PORT || 3000));
 const pastaDados = path.resolve(argumento('dados', process.env.BAZAR_DADOS || path.join(raiz, 'data')));
-const app = criarApp({ pastaDados, pastaPublica: path.join(raiz, 'public') });
+
+// Erros graves também vão para data\erros.log, para dar para ver depois do bazar o que aconteceu.
+function registrarErroGrave(titulo, e) {
+  const texto = `[${new Date().toLocaleString('pt-BR')}] ${titulo}: ${e?.stack ?? e}\n`;
+  console.error(`\n${texto}`);
+  try {
+    fs.appendFileSync(path.join(pastaDados, 'erros.log'), texto);
+  } catch { /* sem como registrar */ }
+}
+
+let app;
+try {
+  app = criarApp({ pastaDados, pastaPublica: path.join(raiz, 'public') });
+} catch (e) {
+  registrarErroGrave('Não consegui abrir o banco de dados', e);
+  console.error(`Confira a pasta ${pastaDados}. Se o arquivo bazar.db estiver danificado, restaure um backup (veja o README).\n`);
+  process.exit(SAIDA_SEM_RELIGAR);
+}
+
+// Tudo o que importa está no banco, então ligar de novo é seguro: o iniciar.bat religa a central
+// e os celulares se reconectam sozinhos.
+for (const evento of ['uncaughtException', 'unhandledRejection']) {
+  process.on(evento, (e) => {
+    registrarErroGrave('Erro inesperado, a central vai reiniciar', e);
+    process.exit(1);
+  });
+}
 
 app.servidor.on('error', (e) => {
   if (e.code === 'EADDRINUSE') {
@@ -22,7 +62,7 @@ app.servidor.on('error', (e) => {
   } else {
     console.error(e);
   }
-  process.exit(1);
+  process.exit(SAIDA_SEM_RELIGAR);
 });
 
 app.servidor.listen(porta, '0.0.0.0', () => {

@@ -1,6 +1,6 @@
 import {
   api, aviso, esc, reais, codigo, hora, iniciarPagina, ouvirMudancas, ativarAbas, camposCliente, lerFormulario,
-  seloStatus, seloMovel, descricaoMovel, atualizarContadores,
+  seloStatus, seloMovel, descricaoMovel, atualizarContadores, botaoDoEnvio,
 } from './comum.js';
 
 const { usuario, config } = await iniciarPagina({ titulo: 'Vender' });
@@ -78,7 +78,7 @@ $('#form-codigo').addEventListener('submit', async (e) => {
   e.preventDefault();
   const valor = $('#codigo').value.trim().replace(/\D/g, '');
   if (!valor) return;
-  const botao = e.submitter;
+  const botao = botaoDoEnvio(e);
   botao.disabled = true;
   try {
     rascunho = await api('POST', '/api/rascunho/itens', { codigo: Number(valor) });
@@ -126,7 +126,7 @@ $('#voltar-itens').addEventListener('click', () => mostrarEtapa('itens'));
 
 formCliente.addEventListener('submit', async (e) => {
   e.preventDefault();
-  const botao = e.submitter;
+  const botao = botaoDoEnvio(e);
   botao.disabled = true;
   try {
     const pedido = await api('POST', '/api/rascunho/finalizar', lerFormulario(formCliente));
@@ -271,7 +271,8 @@ function cartaoMinhaPosicao(lista, eu) {
     const segundo = lista.find((v) => v.total < eu.total);
     detalhe = segundo ? `${reais(eu.total - segundo.total)} à frente de ${esc(segundo.nome)}.` : 'Ninguém mais vendeu ainda.';
   } else {
-    const frente = lista.findLast((v) => v.total > eu.total);
+    // Quem está logo à frente: o último com total maior (sem findLast, que celular antigo não tem).
+    const frente = lista.filter((v) => v.total > eu.total).pop();
     detalhe = `Faltam <strong>${reais(frente.total - eu.total)}</strong> para alcançar ${esc(frente.nome)} (${frente.posicao}º).`;
   }
   return `<div class="cartao minha-posicao ${eu.posicao === 1 ? 'lider' : ''}">

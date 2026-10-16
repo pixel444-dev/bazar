@@ -48,9 +48,18 @@
   <script type="module">
     import { api, esc, codigo } from '/js/comum.js';
     const q = new URLSearchParams(location.search);
-    const de = Number(q.get('de')) || 1;
-    const ate = Math.max(de, Number(q.get('ate')) || de);
-    const [config, moveis] = await Promise.all([api('GET', '/api/config'), api('GET', '/api/moveis')]);
+    let config, moveis;
+    try {
+      [config, moveis] = await Promise.all([api('GET', '/api/config'), api('GET', '/api/moveis')]);
+    } catch (e) {
+      document.getElementById('resumo').textContent = `${e.message} Recarregue a página para tentar de novo.`;
+      throw e;
+    }
+    // Uma faixa digitada errada (ex.: até 3000000) montaria milhões de etiquetas e travaria o navegador.
+    const MAXIMO = 2000;
+    const de = Math.max(1, Math.floor(Number(q.get('de'))) || 1);
+    const pedidoAte = Math.max(de, Math.floor(Number(q.get('ate'))) || de);
+    const ate = Math.min(pedidoAte, de + MAXIMO - 1);
     const porCodigo = new Map(moveis.map((m) => [m.codigo, m]));
     const numeros = Array.from({ length: ate - de + 1 }, (_, i) => de + i);
     const nomeMovel = (n) => {
@@ -72,6 +81,7 @@
       </div>`).join('')}</section>`).join('');
     document.getElementById('resumo').textContent =
       `${numeros.length} etiquetas (${codigo(de)} a ${codigo(ate)}) em ${folhas.length} folha(s) A4. ` +
+      (pedidoAte > ate ? `Mostrando só ${MAXIMO} por vez: depois imprima a partir do ${codigo(ate + 1)}. ` : '') +
       (semNome ? `${semNome} sem cadastro saem com uma linha para escrever o nome à mão. ` : '') +
       'Na janela de impressão use margens "Nenhuma" e escala 100%.';
   </script>

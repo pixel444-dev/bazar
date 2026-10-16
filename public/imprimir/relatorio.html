@@ -123,10 +123,14 @@
   <script type="module">
     import { api, esc, reais, codigo, ROTULO_FORMA } from '/js/comum.js';
 
-    const [{ resumo: r, pedidos, nao_vendidos: sobras, sem_cadastro: semCadastro }, config] = await Promise.all([
-      api('GET', '/api/relatorios/final'),
-      api('GET', '/api/config'),
-    ]);
+    let final, config;
+    try {
+      [final, config] = await Promise.all([api('GET', '/api/relatorios/final'), api('GET', '/api/config')]);
+    } catch (e) {
+      document.getElementById('pagina').textContent = `${e.message} Recarregue a página para tentar de novo.`;
+      throw e;
+    }
+    const { resumo: r, pedidos, nao_vendidos: sobras, sem_cadastro: semCadastro } = final;
 
     const FORMAS = ['dinheiro', 'pix', 'cartao', 'entrega'];
     const NOME_CURTO = { ...ROTULO_FORMA, entrega: 'Na entrega' };

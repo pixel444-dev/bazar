@@ -32,14 +32,24 @@ export async function api(metodo, url, corpo) {
     init.body = JSON.stringify(corpo);
     init.headers['Content-Type'] = 'application/json';
   }
+  // Com Wi-Fi fraco o navegador pode esperar minutos sem resposta, com o botão travado.
+  // Desiste antes e avisa (foto demora mais para subir).
+  const controle = new AbortController();
+  const limite = setTimeout(() => controle.abort(), corpo instanceof Blob ? 120_000 : 30_000);
+  init.signal = controle.signal;
   let r;
+  let dados;
   try {
     r = await fetch(url, init);
+    const ehJson = (r.headers.get('content-type') || '').includes('application/json');
+    dados = ehJson ? await r.json() : await r.text();
   } catch {
-    throw new ErroApi('Sem conexão com a central. Confira se você está no Wi-Fi do bazar.', 0);
+    throw new ErroApi(controle.signal.aborted
+      ? 'A central demorou demais para responder. Confira o Wi-Fi e tente de novo.'
+      : 'Sem conexão com a central. Confira se você está no Wi-Fi do bazar.', 0);
+  } finally {
+    clearTimeout(limite);
   }
-  const ehJson = (r.headers.get('content-type') || '').includes('application/json');
-  const dados = ehJson ? await r.json() : await r.text();
   if (r.status === 401 && location.pathname !== '/' && location.pathname !== '/index.html') {
     location.href = '/';
   }
@@ -64,7 +74,8 @@ export function paraCentavos(valor) {
   if (!s) return 0;
   if (s.includes(',')) s = s.replace(/\./g, '').replace(',', '.');
   else if (/^\d{1,3}(\.\d{3})+$/.test(s)) s = s.replace(/\./g, '');
-  if (!/^\d+(\.\d{1,2})?$/.test(s)) return NaN;
+  // Até R$ 999 milhões: tecla presa ("99999999999…") vira "valor inválido" em vez de um número absurdo.
+  if (!/^\d{1,9}(\.\d{1,2})?$/.test(s)) return NaN;
   return Math.round(Number(s) * 100);
 }
 
@@ -148,20 +159,41 @@ function marcarConexao(ok) {
 
 export function ouvirMudancas(aoMudar) {
   let espera;
+  let fonte = null;
+  let religar;
   const disparar = () => {
     clearTimeout(espera);
     espera = setTimeout(aoMudar, 120);
   };
-  const fonte = new EventSource('/api/eventos');
-  fonte.onmessage = disparar;
-  fonte.onopen = () => {
-    marcarConexao(true);
-    disparar();
-  };
-  fonte.onerror = () => marcarConexao(false);
+  function conectar() {
+    clearTimeout(religar);
+    fonte?.close();
+    fonte = new EventSource('/api/eventos');
+    fonte.onmessage = disparar;
+    fonte.onopen = () => {
+      marcarConexao(true);
+      disparar();
+    };
+    fonte.onerror = () => {
+      marcarConexao(false);
+      // Se a central responde com erro (ex.: reiniciando), o navegador desiste de vez e a tela
+      // para de atualizar sozinha. Nesse caso tenta de novo.
+      if (fonte.readyState === EventSource.CLOSED) religar = setTimeout(conectar, 5000);
+    };
+  }
+  // Aba escondida devolve a conexão: o navegador só mantém 6 abertas com a central e, passando
+  // disso (várias abas do sistema abertas), todas as telas desse navegador travam.
   document.addEventListener('visibilitychange', () => {
-    if (!document.hidden) disparar();
+    if (document.hidden) {
+      clearTimeout(religar);
+      fonte?.close();
+      fonte = null;
+    } else {
+      conectar();
+      disparar();
+    }
   });
+  if (!document.hidden) conectar();
 }
 
 // Contadores "Reserva: 12:34" em qualquer elemento com data-expira.
@@ -206,18 +238,26 @@ function montarTopo(usuario, titulo, config) {
 }
 
 export async function iniciarPagina({ titulo, papeis }) {
+  const falhou = (e) => {
+    if (e.status !== 401) document.body.innerHTML = `<main><div class="mensagem erro">${esc(e.message)}</div><button class="botao primario" onclick="location.reload()">Tentar de novo</button></main>`;
+    return e;
+  };
   let usuario;
   try {
     usuario = await api('GET', '/api/eu');
   } catch (e) {
-    if (e.status !== 401) document.body.innerHTML = `<main><div class="mensagem erro">${esc(e.message)}</div><button class="botao primario" onclick="location.reload()">Tentar de novo</button></main>`;
-    throw e;
+    throw falhou(e);
   }
   if (papeis && !papeis.includes(usuario.papel)) {
     location.href = PAGINA_INICIAL[usuario.papel];
     throw new Error('Sem permissão para esta página.');
   }
-  const config = await api('GET', '/api/config');
+  let config;
+  try {
+    config = await api('GET', '/api/config');
+  } catch (e) {
+    throw falhou(e);
+  }
   diferencaRelogio = config.servidor_agora - Date.now();
   document.title = `${titulo} · ${config.nome_evento}`;
   montarTopo(usuario, titulo, config);
@@ -296,12 +336,31 @@ export function imprimirComprovante(pedidoId) {
   quadro.src = `/imprimir/comprovante.html?pedido=${pedidoId}&auto=1&t=${Date.now()}`;
 }
 
+// O comprovante imprime num quadro escondido: se ele não carregar, avisa o caixa aqui.
+window.addEventListener('message', (e) => {
+  if (e.origin === location.origin && e.data?.erroImpressao) {
+    aviso(`O comprovante não imprimiu: ${e.data.erroImpressao} Clique em "Imprimir comprovante" para tentar de novo.`, 'erro', 10000);
+  }
+});
+
 export async function reduzirImagem(arquivo, ladoMaximo = 1600) {
-  const imagem = await createImageBitmap(arquivo);
+  let imagem;
+  try {
+    imagem = await createImageBitmap(arquivo);
+  } catch {
+    throw new Error('Não consegui abrir essa foto. Tire a foto de novo ou escolha uma imagem JPG ou PNG.');
+  }
   const escala = Math.min(1, ladoMaximo / Math.max(imagem.width, imagem.height));
   const canvas = document.createElement('canvas');
   canvas.width = Math.round(imagem.width * escala);
   canvas.height = Math.round(imagem.height * escala);
   canvas.getContext('2d').drawImage(imagem, 0, 0, canvas.width, canvas.height);
-  return new Promise((resolve) => canvas.toBlob(resolve, 'image/jpeg', 0.85));
+  imagem.close?.();
+  // Sem memória para a imagem, o navegador devolve null em vez de dar erro.
+  const foto = await new Promise((resolve) => canvas.toBlob(resolve, 'image/jpeg', 0.85));
+  if (!foto) throw new Error('Não consegui preparar a foto. Tente de novo.');
+  return foto;
 }
+
+// Navegadores antigos (iPhone com iOS antes do 15.4) não informam qual botão enviou o formulário.
+export const botaoDoEnvio = (e) => e.submitter ?? e.target.querySelector('button:not([type="button"])');

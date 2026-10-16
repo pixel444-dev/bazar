@@ -70,6 +70,10 @@ Para imprimir o comprovante sem a janela de impressão aparecer toda vez, abra o
 - O banco fica em `data\bazar.db`. A cada 3 minutos com mudanças é feito um backup em `data\backups`
   e, se configurado, no pendrive (junto com as fotos dos comprovantes).
 - Se o notebook desligar, basta ligar de novo e rodar o `iniciar.bat`: nada se perde.
+- Se a central parar por um erro inesperado, o `iniciar.bat` liga ela de novo sozinho em 3 segundos e os
+  celulares se reconectam. O erro fica anotado em `data\erros.log` para ver depois.
+- Clicar dentro da janela preta não congela mais a central (o `iniciar.bat` desliga o modo "Selecionar" do Windows nela).
+- Errar o PIN 5 vezes seguidas no mesmo aparelho faz esperar 30 segundos antes de tentar de novo.
 - Para restaurar um backup: feche a central, copie o arquivo de backup por cima de `data\bazar.db`
   e apague `bazar.db-wal` e `bazar.db-shm` se existirem.
 

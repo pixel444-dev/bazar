@@ -1,4 +1,4 @@
-import { api, esc, PAGINA_INICIAL } from './comum.js';
+import { api, esc, botaoDoEnvio, PAGINA_INICIAL } from './comum.js';
 
 const $ = (s) => document.querySelector(s);
 let escolhido = null;
@@ -48,7 +48,7 @@ $('#voltar').addEventListener('click', () => {
 
 $('#form-pin').addEventListener('submit', async (e) => {
   e.preventDefault();
-  const botao = e.submitter;
+  const botao = botaoDoEnvio(e);
   botao.disabled = true;
   try {
     const u = await api('POST', '/api/login', { usuario_id: escolhido.id, pin: $('#pin').value });

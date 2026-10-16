@@ -265,7 +265,9 @@ function ligarDetalhe(p) {
       aviso('Comprovante anexado.', 'ok');
       abrir(p.id, true);
     } catch (erro) {
-      aviso(erro.message, 'erro');
+      aviso(erro.message, 'erro', 7000);
+    } finally {
+      e.target.value = ''; // deixa escolher a mesma foto de novo depois de um erro
     }
   });
 }
@@ -275,6 +277,7 @@ function ligarPagamento(form, p) {
   const conta = form.querySelector('#conta');
   const botao = form.querySelector('#confirmar');
   let calculo = null;
+  let enviando = false;
 
   function recalcular() {
     const v = (nome) => paraCentavos(campos[nome].value);
@@ -312,7 +315,7 @@ function ligarPagamento(form, p) {
       }
     }
     conta.innerHTML = html;
-    botao.disabled = !ok;
+    botao.disabled = !ok || enviando;
     calculo = {
       pagamentos: [['dinheiro', dinNoCaixa], ['pix', pix], ['cartao', cartao], ['entrega', entrega]]
         .filter(([, valor]) => valor > 0)
@@ -333,7 +336,9 @@ function ligarPagamento(form, p) {
 
   form.addEventListener('submit', async (e) => {
     e.preventDefault();
-    if (!calculo || botao.disabled) return;
+    if (!calculo || botao.disabled || enviando) return;
+    // Digitar enquanto envia recalcula e reativaria o botão: a trava evita mandar duas vezes.
+    enviando = true;
     botao.disabled = true;
     try {
       await api('POST', `/api/pedidos/${p.id}/pagar`, calculo);
@@ -344,7 +349,9 @@ function ligarPagamento(form, p) {
       carregarLista();
     } catch (erro) {
       aviso(erro.message, 'erro', 8000);
-      botao.disabled = false;
+    } finally {
+      enviando = false;
+      recalcular();
     }
   });
   recalcular();

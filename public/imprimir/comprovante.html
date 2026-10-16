@@ -28,7 +28,15 @@
   <script type="module">
     import { api, esc, reais, codigo, dataHora, telefoneFmt, ROTULO_FORMA, aReceberNaEntrega } from '/js/comum.js';
     const q = new URLSearchParams(location.search);
-    const [p, config] = await Promise.all([api('GET', `/api/pedidos/${Number(q.get('pedido'))}`), api('GET', '/api/config')]);
+    let p, config;
+    try {
+      [p, config] = await Promise.all([api('GET', `/api/pedidos/${Number(q.get('pedido'))}`), api('GET', '/api/config')]);
+    } catch (e) {
+      document.getElementById('cupom').textContent = e.message;
+      // Impresso num quadro escondido da tela do caixa: avisa a tela para o caixa saber que não saiu.
+      if (window.parent !== window) window.parent.postMessage({ erroImpressao: e.message }, location.origin);
+      throw e;
+    }
     const naEntrega = aReceberNaEntrega(p);
     const dinheiro = p.pagamentos.filter((x) => x.forma === 'dinheiro').reduce((s, x) => s + x.valor_centavos, 0);
     document.getElementById('cupom').innerHTML = `

@@ -3,6 +3,7 @@ import { transacao, lerConfig, buscarMovel } from './db.js';
 
 // 'entrega': o cliente paga ao entregador quando recebe o móvel.
 export const FORMAS = ['dinheiro', 'pix', 'cartao', 'entrega'];
+const TROCO_MAXIMO = 10_000_000; // R$ 100.000,00
 
 const ROTULO = {
   rascunho: 'em andamento',
@@ -274,11 +275,11 @@ export function criarVendas(db, aoMudar = () => {}) {
       if (!p.itens.length) throw new ErroHttp(409, 'Esse pedido não tem móveis.');
 
       const pagamentos = (Array.isArray(corpo.pagamentos) ? corpo.pagamentos : [])
-        .map((x) => ({ forma: x.forma, valor: Number(x.valor_centavos) }))
+        .map((x) => ({ forma: x?.forma, valor: Number(x?.valor_centavos) }))
         .filter((x) => x.valor !== 0);
       if (!pagamentos.length) throw new ErroHttp(400, 'Informe como o cliente pagou.');
       for (const x of pagamentos) {
-        if (!FORMAS.includes(x.forma) || !Number.isInteger(x.valor) || x.valor < 0) {
+        if (!FORMAS.includes(x.forma) || !Number.isSafeInteger(x.valor) || x.valor < 0) {
           throw new ErroHttp(400, 'Pagamento inválido.');
         }
       }
@@ -286,8 +287,11 @@ export function criarVendas(db, aoMudar = () => {}) {
       if (soma !== p.total_centavos) {
         throw new ErroHttp(400, `A soma dos pagamentos (${reais(soma)}) não bate com o total (${reais(p.total_centavos)}).`);
       }
+      // Um número gigante gravado aqui não volta mais do banco e quebraria o fechamento de vez.
       const troco = Number(corpo.troco_centavos) || 0;
-      if (!Number.isInteger(troco) || troco < 0) throw new ErroHttp(400, 'Troco inválido.');
+      if (!Number.isInteger(troco) || troco < 0 || troco > TROCO_MAXIMO) {
+        throw new ErroHttp(400, 'Troco inválido. Confira quanto o cliente entregou em dinheiro.');
+      }
       if (troco > 0 && !pagamentos.some((x) => x.forma === 'dinheiro')) {
         throw new ErroHttp(400, 'Só existe troco quando parte do pagamento é em dinheiro.');
       }

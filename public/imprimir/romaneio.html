@@ -49,10 +49,16 @@
       location.search = e.target.checked ? '?todos=1' : '';
     });
 
-    const [pedidos, config] = await Promise.all([
-      api('GET', `/api/relatorios/romaneio?pendentes=${todos ? 0 : 1}`),
-      api('GET', '/api/config'),
-    ]);
+    let pedidos, config;
+    try {
+      [pedidos, config] = await Promise.all([
+        api('GET', `/api/relatorios/romaneio?pendentes=${todos ? 0 : 1}`),
+        api('GET', '/api/config'),
+      ]);
+    } catch (e) {
+      document.getElementById('pagina').textContent = `${e.message} Recarregue a página para tentar de novo.`;
+      throw e;
+    }
 
     // Resumo do que colocar no caminhão
     const carga = new Map();

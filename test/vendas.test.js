@@ -1,5 +1,6 @@
 import { test, before, after } from 'node:test';
 import assert from 'node:assert/strict';
+import { spawn } from 'node:child_process';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
@@ -23,11 +24,14 @@ after(async () => {
 
 function cliente() {
   let cookie = '';
-  async function req(metodo, url, corpo) {
+  // `bruto` ({ tipo, dados }) manda o corpo como está, para fotos e corpos malformados.
+  async function req(metodo, url, corpo, bruto) {
     const headers = {};
-    if (corpo !== undefined) headers['Content-Type'] = 'application/json';
+    if (bruto) headers['Content-Type'] = bruto.tipo;
+    else if (corpo !== undefined) headers['Content-Type'] = 'application/json';
     if (cookie) headers.Cookie = cookie;
-    const r = await fetch(base + url, { method: metodo, headers, body: corpo === undefined ? undefined : JSON.stringify(corpo) });
+    const body = bruto ? bruto.dados : corpo === undefined ? undefined : JSON.stringify(corpo);
+    const r = await fetch(base + url, { method: metodo, headers, body });
     const setCookie = r.headers.get('set-cookie');
     if (setCookie) cookie = setCookie.split(';')[0];
     const json = (r.headers.get('content-type') ?? '').includes('json');
@@ -304,4 +308,85 @@ test('banco antigo ganha a forma de pagamento na entrega sem perder pagamentos',
     [{ forma: 'pix', valor_centavos: 900 }, { forma: 'entrega', valor_centavos: 100 }]);
   assert.ok(db.prepare("SELECT 1 FROM sqlite_master WHERE name = 'idx_pagamentos_pedido'").get());
   db.close();
+});
+
+test('troco gigante digitado por engano é recusado e o fechamento continua abrindo', async () => {
+  ok(await beto.req('POST', '/api/rascunho/itens', { codigo: 4 }));
+  const p = ok(await beto.req('POST', '/api/rascunho/finalizar', dadosCliente(cidadeId)));
+  // O SQLite aceita gravar 10^17, mas não devolve mais o valor: pedido e fechamento quebrariam de vez.
+  const r = await carla.req('POST', `/api/pedidos/${p.id}/pagar`, {
+    pagamentos: [{ forma: 'dinheiro', valor_centavos: p.total_centavos }], troco_centavos: 1e17,
+  });
+  assert.equal(r.status, 400);
+  assert.match(r.dados.erro, /Troco inválido/);
+  assert.equal((await carla.req('POST', `/api/pedidos/${p.id}/pagar`, { pagamentos: [null] })).status, 400);
+  ok(await carla.req('GET', '/api/relatorios/resumo'));
+  assert.equal(ok(await carla.req('GET', `/api/pedidos/${p.id}`)).status, 'aguardando');
+  ok(await carla.req('POST', `/api/pedidos/${p.id}/cancelar`));
+});
+
+test('números de etiqueta enormes são recusados em vez de travar a central', async () => {
+  const tipo = ok(await admin.req('GET', '/api/config')).tipos[0].id;
+  // Acima de 2^53, `codigo++` não muda o número e o cadastro em lote nunca terminaria.
+  const lote = await admin.req('POST', '/api/admin/moveis/lote', { de: 1e16, ate: 1e16, tipo_id: tipo, preco_centavos: 100 });
+  assert.equal(lote.status, 400);
+  app.db.prepare('INSERT INTO moveis (codigo, atualizado_em) VALUES (99990, 0)').run();
+  const etiquetas = await admin.req('POST', '/api/admin/etiquetas', { quantidade: 20 });
+  assert.equal(etiquetas.status, 400);
+  assert.match(etiquetas.dados.erro, /mais 9/);
+  app.db.prepare('DELETE FROM moveis WHERE codigo = 99990').run();
+});
+
+test('corpo, endereço e arquivos com problema viram mensagem, não "Erro interno" nem espera eterna', async () => {
+  const nulo = await cliente().req('POST', '/api/login', null);
+  assert.equal(nulo.status, 400);
+  assert.equal(nulo.dados.erro, 'PIN incorreto.');
+  assert.equal((await fetch(`${base}/%E0%A4%A`)).status, 400);
+
+  const png = { tipo: 'image/png', dados: Buffer.from('89504e470d0a1a0a', 'hex') };
+  const { id } = ok(await carla.req('POST', `/api/pedidos/${pedidoAna.id}/comprovantes`, undefined, png));
+  for (const f of fs.readdirSync(path.join(pasta, 'comprovantes'))) fs.rmSync(path.join(pasta, 'comprovantes', f));
+  const sumiu = await carla.req('GET', `/api/comprovantes/${id}`);
+  assert.equal(sumiu.status, 404);
+
+  const grande = { tipo: 'image/jpeg', dados: Buffer.alloc(13 * 1024 * 1024) };
+  const r = await carla.req('POST', `/api/pedidos/${pedidoAna.id}/comprovantes`, undefined, grande);
+  assert.equal(r.status, 413);
+  assert.equal(r.dados.erro, 'Arquivo grande demais.');
+});
+
+test('banco ocupado por outro programa: espera liberar em vez de falhar', async () => {
+  // Outro processo (antivírus, cópia do arquivo) segura o banco por 0,8 s.
+  const outro = spawn(process.execPath, ['--disable-warning=ExperimentalWarning', '-e', `
+    const { DatabaseSync } = require('node:sqlite');
+    const db = new DatabaseSync(${JSON.stringify(path.join(pasta, 'bazar.db'))});
+    db.exec('BEGIN IMMEDIATE');
+    console.log('segurando');
+    setTimeout(() => { db.exec('ROLLBACK'); db.close(); }, 800);`]);
+  const saiu = new Promise((resolve) => outro.on('exit', resolve));
+  await new Promise((resolve) => outro.stdout.once('data', resolve));
+  ok(await admin.req('POST', '/api/admin/cidades', { nome: 'Sumaré' }));
+  await saiu;
+});
+
+test('transação que sobrou aberta não trava as próximas', async () => {
+  const { abrirBanco, transacao } = await import('../src/db.js');
+  const db = abrirBanco(':memory:');
+  db.exec('BEGIN');
+  assert.equal(transacao(db, () => 42), 42);
+  assert.throws(() => transacao(db, () => { throw new Error('falhou de propósito'); }), /falhou de propósito/);
+  assert.equal(transacao(db, () => 7), 7);
+  db.close();
+});
+
+// Fica por último: bloqueia novos logins deste endereço por 30 s.
+test('muitos PINs errados seguidos fazem esperar antes de tentar de novo', async () => {
+  const intruso = cliente();
+  await intruso.login('Ana', '1111');
+  const { dados } = await intruso.req('GET', '/api/login/usuarios');
+  const anaId = dados.usuarios.find((u) => u.nome === 'Ana').id;
+  for (let i = 0; i < 5; i++) assert.equal((await intruso.req('POST', '/api/login', { usuario_id: anaId, pin: '9999' })).status, 400);
+  const bloqueado = await intruso.req('POST', '/api/login', { usuario_id: anaId, pin: '1111' });
+  assert.equal(bloqueado.status, 429);
+  assert.match(bloqueado.dados.erro, /Espere \d+ segundos/);
 });
