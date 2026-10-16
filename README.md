@@ -17,7 +17,7 @@ O que ele resolve:
 1. Ligue o roteador e conecte o notebook central no Wi-Fi dele.
 2. Dê dois cliques em **`iniciar.bat`**. Uma janela preta abre mostrando os endereços. **Não feche essa janela.**
 3. Na primeira vez, o Windows pergunta se libera o Node.js no firewall: marque **Redes privadas** e permita.
-4. No notebook, abra `http://localhost:3000` e entre como **Admin**, PIN **1234**. Troque o PIN em *Equipe, cidades e tipos*.
+4. O navegador abre sozinho em `http://localhost:3000` (se não abrir, digite esse endereço). Entre como **Admin**, PIN **1234**. Troque o PIN em *Equipe, cidades e tipos*.
 
 Para os celulares, abra *Configurações → Acesso dos celulares* e imprima a página com os QR codes
 (Wi-Fi e endereço do sistema). Cole na entrada do galpão.

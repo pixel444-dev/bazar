@@ -1,3 +1,4 @@
+import { spawn } from 'node:child_process';
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -28,6 +29,16 @@ function argumento(nome, padrao) {
 
 const porta = Number(argumento('porta', process.env.PORT || 3000));
 const pastaDados = path.resolve(argumento('dados', process.env.BAZAR_DADOS || path.join(raiz, 'data')));
+// O iniciar.bat só passa --abrir-navegador na primeira vez, para não abrir uma aba nova cada vez
+// que a central religa sozinha depois de um erro.
+const abrirNavegador = process.argv.includes('--abrir-navegador');
+
+// Abre o endereço no navegador padrão do Windows. Se não der, a central segue ligada do mesmo jeito.
+function abrirNoNavegador(url) {
+  try {
+    spawn('cmd', ['/c', 'start', '', url], { stdio: 'ignore', windowsHide: true }).on('error', () => {});
+  } catch { /* o endereço continua na janela */ }
+}
 
 // Erros graves também vão para data\erros.log, para dar para ver depois do bazar o que aconteceu.
 function registrarErroGrave(titulo, e) {
@@ -84,6 +95,7 @@ app.servidor.listen(porta, '0.0.0.0', () => {
   console.log('');
   console.log('  NÃO FECHE ESTA JANELA durante o bazar.');
   console.log(`${linha}\n`);
+  if (abrirNavegador) abrirNoNavegador(`http://localhost:${porta}`);
 });
 
 let encerrando = false;

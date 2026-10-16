@@ -27,9 +27,14 @@ rem desligando esse modo nesta janela enquanto ela estiver aberta (o cmd religa 
 rem programa que termina, por isso ele repete a cada 2 s). Se falhar, a central liga do mesmo jeito.
 start "" /b powershell -NoProfile -Command "try { $k = Add-Type -Name Janela -Namespace Bazar -PassThru -MemberDefinition '[DllImport(\"kernel32.dll\")] public static extern System.IntPtr GetStdHandle(int n); [DllImport(\"kernel32.dll\")] public static extern bool GetConsoleMode(System.IntPtr h, out uint m); [DllImport(\"kernel32.dll\")] public static extern bool SetConsoleMode(System.IntPtr h, uint m);'; $h = $k::GetStdHandle(-10); $pai = (Get-CimInstance Win32_Process -Filter \"ProcessId=$PID\").ParentProcessId; while (Get-Process -Id $pai -ErrorAction SilentlyContinue) { $m = 0; if ($k::GetConsoleMode($h, [ref]$m) -and ($m -band 0x40)) { [void]$k::SetConsoleMode($h, ($m -band -bnot 0x40) -bor 0x80) }; Start-Sleep -Seconds 2 } } catch {}" >nul 2>nul
 
+rem Abre a central no navegador assim que ela ligar, mas so na primeira vez: quando ela religa
+rem sozinha depois de um erro, a aba que ja esta aberta volta a funcionar sem abrir outra.
+set ABRIR=--abrir-navegador
+
 :ligar
-node --disable-warning=ExperimentalWarning server.js
+node --disable-warning=ExperimentalWarning server.js %ABRIR%
 set CODIGO=%ERRORLEVEL%
+set ABRIR=
 rem 0: desligada com Ctrl+C. 2: problema que religar nao resolve (porta em uso, banco que nao abre).
 rem Qualquer outro codigo e um erro inesperado: tudo esta salvo no banco, entao religa sozinha.
 if "%CODIGO%"=="0" goto fim
